@@ -1,7 +1,7 @@
 import sys, os, socket, threading, time, random, signal
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from common.codec import encode_msg, decode_msg
-from common.logger import save_mission_event, print_mission_summary
+from common.logger_ml import save_mission_event, print_mission_summary
 from common.state import get_next_mission_id
 
 
