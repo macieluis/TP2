@@ -1,33 +1,36 @@
+# rover/missionlink_client.py
 import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import socket, time, threading, math, random
 from common.codec import encode_msg, decode_msg
+import rover_identity
 
 SERVER = ("127.0.0.1", 5000)
-ROVER_ID = random.choice(["R-001", "R-002", "R-003", "R-004"])
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-# ---------------- Base ----------------
 
-def send_request():
+def send_request(sock):
     """Pede uma nova missão à Nave-Mãe."""
-    payload = {"rover_id": ROVER_ID}
+    payload = {"rover_id": rover_identity.ROVER_ID}
     pkt = encode_msg(1, 1, 6, 1, payload)  # 6 = request_mission
     sock.sendto(pkt, SERVER)
-    print(f"[{ROVER_ID}] Pedido de missão enviado.")
+    print(f"[{rover_identity.ROVER_ID}] Pedido de missão enviado.")
 
-def send_ack(seq, mission_id):
+
+def send_ack(sock, seq, mission_id):
     """Confirma receção da missão."""
     payload = {"mission_id": mission_id}
     pkt = encode_msg(1, 1, 2, seq, payload)  # 2 = ACK
     sock.sendto(pkt, SERVER)
-    print(f"[{ROVER_ID}] ACK enviado.")
+    print(f"[{rover_identity.ROVER_ID}] ACK enviado.")
 
-# ---------------- Tipos de missão ----------------
 
-def execute_scan_area(mission_id, duration, interval, area, resolution):
+# ---- EXECUÇÃO DAS MISSÕES ----
+
+def execute_scan_area(sock, mission_id, duration, interval, area, resolution):
     """Varrimento em zig-zag: caminho discreto (grid) + updates sincronizados ao update_interval."""
+    print(f"[{rover_identity.ROVER_ID}] >>> Início da missão {mission_id} (SCAN AREA)")
+
     x1, y1 = area[0]
     x2, y2 = area[1]
 
@@ -51,26 +54,24 @@ def execute_scan_area(mission_id, duration, interval, area, resolution):
 
     total_steps = len(path)
     if total_steps <= 1:
-        # degrau trivial
+        # caso degenerado (área minúscula)
         payload = {
             "mission_id": mission_id,
             "task": "scan_area",
             "progress": 1.0,
-            "status": "in_progress",
+            "status": "completed",
             "position": [round(x2, 1), round(y2, 1)],
         }
         pkt = encode_msg(1, 1, 3, 0, payload)
         sock.sendto(pkt, SERVER)
-        print(f"[{ROVER_ID}] {mission_id}: 100% (pos={x2:.1f},{y2:.1f})")
-        print(f"[{ROVER_ID}] Missão {mission_id} concluída.")
+        print(f"[{rover_identity.ROVER_ID}] {mission_id}: 100% (pos={x2:.1f},{y2:.1f})")
+        print(f"[{rover_identity.ROVER_ID}] Missão {mission_id} concluída.")
         return
 
     # tempo por waypoint para perfazer 'duration'
     step_time = duration / (total_steps - 1)
     elapsed = 0.0
     next_update = 0.0
-
-    print(f"[{ROVER_ID}] >>> Início da missão {mission_id} (SCAN AREA)")
 
     for idx, (x, y) in enumerate(path):
         progress = idx / (total_steps - 1)
@@ -86,29 +87,29 @@ def execute_scan_area(mission_id, duration, interval, area, resolution):
             }
             pkt = encode_msg(1, 1, 3, int(elapsed), payload)
             sock.sendto(pkt, SERVER)
-            print(f"[{ROVER_ID}] {mission_id}: {progress*100:.0f}% (pos={x:.1f},{y:.1f})")
+            print(f"[{rover_identity.ROVER_ID}] {mission_id}: {progress*100:.0f}% (pos={x:.1f},{y:.1f})")
             next_update += interval
 
         # avançar no “relógio” da missão
         time.sleep(step_time)
         elapsed += step_time
 
-    print(f"[{ROVER_ID}] Missão {mission_id} concluída.")
+    print(f"[{rover_identity.ROVER_ID}] Missão {mission_id} concluída.")
 
-    
-def execute_collect_sample(mission_id, duration, interval, points, sample_type):
-    print(f"[{ROVER_ID}] >>> Início da missão {mission_id} (COLLECT SAMPLE)")
 
+def execute_collect_sample(sock, mission_id, duration, interval, points, sample_type):
+    print(f"[{rover_identity.ROVER_ID}] >>> Início da missão {mission_id} (COLLECT SAMPLE)")
     pos = [random.uniform(0, 5), random.uniform(0, 5)]
     total_points = len(points)
 
     route = [pos] + points
-    dists = [((route[i+1][0] - route[i][0])**2 + (route[i+1][1] - route[i][1])**2)**0.5 for i in range(len(route)-1)]
+    dists = [((route[i+1][0] - route[i][0])**2 + (route[i+1][1] - route[i][1])**2)**0.5
+             for i in range(len(route)-1)]
     total_dist = sum(dists)
 
     move_time_total = duration * 0.85  # 85% a mover, 15% a recolher
     collect_time_each = (duration - move_time_total) / total_points
-    speed = total_dist / move_time_total
+    speed = total_dist / move_time_total if move_time_total > 0 else 0.0
 
     elapsed = 0.0
     next_update = 0.0
@@ -135,7 +136,7 @@ def execute_collect_sample(mission_id, duration, interval, points, sample_type):
                 }
                 pkt = encode_msg(1, 1, 3, int(elapsed), payload)
                 sock.sendto(pkt, SERVER)
-                print(f"[{ROVER_ID}] {mission_id}: {progress*100:.0f}% recolhendo em {collecting_point}")
+                print(f"[{rover_identity.ROVER_ID}] {mission_id}: {progress*100:.0f}% recolhendo em {collecting_point}")
                 collected += 1
                 collecting_mode = False
                 current_segment += 1
@@ -153,12 +154,12 @@ def execute_collect_sample(mission_id, duration, interval, points, sample_type):
             collecting_mode = True
             collecting_point = target
             # mantém posição fixa e espera até próximo update_interval
-            # não envia nada agora, só no próximo update
         else:
             # movimento normal
-            step = min(speed, dist)
-            pos[0] += dx / dist * step
-            pos[1] += dy / dist * step
+            if dist > 0 and speed > 0:
+                step = min(speed, dist)
+                pos[0] += dx / dist * step
+                pos[1] += dy / dist * step
 
         # enviar update apenas no tempo certo
         if elapsed >= next_update or elapsed >= duration:
@@ -175,7 +176,10 @@ def execute_collect_sample(mission_id, duration, interval, points, sample_type):
             }
             pkt = encode_msg(1, 1, 3, int(elapsed), payload)
             sock.sendto(pkt, SERVER)
-            print(f"[{ROVER_ID}] {mission_id}: {progress*100:.0f}% {status} (pos={pos[0]:.1f},{pos[1]:.1f}) → alvo {target}")
+            print(
+                f"[{rover_identity.ROVER_ID}] {mission_id}: {progress*100:.0f}% {status} "
+                f"(pos={pos[0]:.1f},{pos[1]:.1f}) → alvo {target}"
+            )
             next_update += interval
 
         time.sleep(1)
@@ -192,19 +196,22 @@ def execute_collect_sample(mission_id, duration, interval, points, sample_type):
     }
     pkt = encode_msg(1, 1, 3, int(elapsed), payload)
     sock.sendto(pkt, SERVER)
-    print(f"[{ROVER_ID}] {mission_id}: 100% completed em {pos}")
+    print(f"[{rover_identity.ROVER_ID}] {mission_id}: 100% completed em {pos}")
     if collected < len(points):
-        print(f"[{ROVER_ID}] ⚠️ Missão {mission_id} terminou antes de recolher todas as amostras " 
-              f"({collected}/{len(points)})")
+        print(
+            f"[{rover_identity.ROVER_ID}] ⚠️ Missão {mission_id} terminou antes de recolher todas as amostras "
+            f"({collected}/{len(points)})"
+        )
     else:
-        print(f"[{ROVER_ID}] ✅ Todas as amostras recolhidas com sucesso ({collected}/{len(points)})")
+        print(
+            f"[{rover_identity.ROVER_ID}] ✅ Todas as amostras recolhidas com sucesso ({collected}/{len(points)})"
+        )
 
 
-
-def execute_analyze_environment(mission_id, duration, interval, sensors):
+def execute_analyze_environment(sock, mission_id, duration, interval, area, sensors):
     """Analisa ambiente com movimento circular e variação realista (ciclo diurno estável)."""
     steps = duration // interval
-    print(f"[{ROVER_ID}] >>> Início da missão {mission_id} (ANALYZE ENVIRONMENT)")
+    print(f"[{rover_identity.ROVER_ID}] >>> Início da missão {mission_id} (ANALYZE ENVIRONMENT)")
 
     base_temp = -50
     temp_amplitude = 30  # variação máxima de ±15 °C em torno do base_temp
@@ -213,7 +220,7 @@ def execute_analyze_environment(mission_id, duration, interval, sensors):
 
     for i in range(1, steps + 1):
         angle = (i / steps) * 2 * math.pi
-        # movimento circular dentro da área
+        # movimento circular dentro da área (hardcoded para [10,10] +- raio, como já tinhas)
         x = 10 + 2.5 * math.cos(angle)
         y = 10 + 2.5 * math.sin(angle)
 
@@ -242,54 +249,72 @@ def execute_analyze_environment(mission_id, duration, interval, sensors):
         }
         pkt = encode_msg(1, 1, 3, i, payload)
         sock.sendto(pkt, SERVER)
-        
-        print(f"[{ROVER_ID}] {mission_id}: {progress*100:.0f}% pos({x:.1f},{y:.1f}) {data}")
+
+        print(f"[{rover_identity.ROVER_ID}] {mission_id}: {progress*100:.0f}% pos({x:.1f},{y:.1f}) {data}")
         time.sleep(interval)
-    print(f"[{ROVER_ID}] Missão {mission_id} concluída.")
+
+    print(f"[{rover_identity.ROVER_ID}] Missão {mission_id} concluída.")
 
 
-# ---------------- Router principal ----------------
-
-def execute_mission(payload):
-    """Seleciona o tipo de missão e executa."""
+def execute_mission(sock, payload):
     task = payload.get("task", "")
     mission_id = payload["mission_id"]
     duration = payload.get("duration", 120)
     interval = payload.get("update_interval", 10)
 
     if task == "scan_area":
-        execute_scan_area(mission_id, duration, interval, payload["area"], payload.get("resolution", 1.0))
+        execute_scan_area(sock, mission_id, duration, interval, payload["area"], payload.get("resolution", 1.0))
     elif task == "collect_sample":
-        execute_collect_sample(mission_id, duration, interval, payload["points"], payload.get("sample_type", "rock"))
+        execute_collect_sample(sock, mission_id, duration, interval, payload["points"],
+                               payload.get("sample_type", "rock"))
     elif task == "analyze_environment":
-        execute_analyze_environment(mission_id, duration, interval, payload.get("sensors", []))
+        execute_analyze_environment(sock, mission_id, duration, interval,
+                                    payload.get("area", []), payload.get("sensors", []))
     else:
-        print(f"[{ROVER_ID}] Tipo de missão desconhecido: {task}")
+        print(f"[{rover_identity.ROVER_ID}] Tipo de missão desconhecido: {task}")
 
-# ---------------- Listener UDP ----------------
 
-def listener():
+def missionlink_listener(sock):
     """Recebe mensagens da Nave-Mãe e despacha execuções."""
     while True:
-        data, _ = sock.recvfrom(4096)
+        try:
+            data, _ = sock.recvfrom(4096)
+        except KeyboardInterrupt:
+            print(f"\n[{rover_identity.ROVER_ID}] MissionLink encerrado manualmente.")
+            break
+
         msg = decode_msg(data)
+
         if msg["action"] == 1:  # new_mission
             payload = msg["payload"]
-            task = payload.get("task", "unknown").upper()
-            print(f"[{ROVER_ID}] >>> Missão recebida: {task} ({payload['mission_id']})")
-            print(f"[{ROVER_ID}] Nova missão: {payload}")  # payload completo (como JSON)
+            print(f"[{rover_identity.ROVER_ID}] Nova missão: {payload}")
             for k, v in payload.items():
                 print(f"    - {k}: {v}")
-            send_ack(msg["seq"], payload["mission_id"])
-            threading.Thread(target=execute_mission, args=(payload,), daemon=True).start()
+
+            send_ack(sock, msg["seq"], payload["mission_id"])
+
+            threading.Thread(
+                target=execute_mission,
+                args=(sock, payload),
+                daemon=True
+            ).start()
 
 
-# ---------------- Main ----------------
+def start_missionlink():
+    """Arranca o cliente MissionLink para o ROVER_ID já escolhido."""
+    if rover_identity.ROVER_ID is None:
+        raise RuntimeError("ROVER_ID não definido. Chama rover_identity.choose_rover_id() primeiro.")
 
-if __name__ == "__main__":
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    send_request(sock)
     try:
-        send_request()
-        listener()
-    except KeyboardInterrupt:
-        print(f"\n[{ROVER_ID}] Cliente encerrado manualmente.")
+        missionlink_listener(sock)
+    finally:
         sock.close()
+
+
+# modo standalone (testar só ML)
+if __name__ == "__main__":
+    from rover_identity import choose_rover_id
+    choose_rover_id()
+    start_missionlink()
