@@ -43,7 +43,7 @@ def send_message(addr, action, payload, rover_id):
                 acks.remove(seq)
                 log(f"ACK confirmado de {addr}")
                 # estado inicial da missão
-                update_mission(rover_id, payload["mission_id"], 0.0, "assigned")
+                update_mission(rover_id, payload["mission_id"], 0.0, "assigned", None)
                 save_mission_event(addr, payload["mission_id"], "assigned")
                 return True
             time.sleep(0.1)
@@ -119,7 +119,8 @@ def listener():
             m_id = pl["mission_id"]
             progress = pl.get("progress", 0.0)
             status = pl.get("status", "in_progress")
-            log(f"Update de {addr}: {m_id} → {progress*100:.0f}% ({status})")
+            pos= pl.get("position")
+            log(f"Update de {addr}: {m_id} → {progress*100:.0f}% ({status}) pos={pos}")
 
             # atualizar estado global
             if rover_id:

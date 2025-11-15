@@ -4,9 +4,31 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import socket, time, threading, math, random
 from common.codec import encode_msg, decode_msg
+from state_manager import get_rover_state, update_rover_state
 import rover_identity
 
 SERVER = ("127.0.0.1", 5000)
+
+_current_status = "idle"
+
+def get_mission_status():
+    return _current_status
+
+last_position = [0, 0, 0]
+
+def update_last_position(x, y):
+    global last_position
+    last_position = [round(x,2), round(y,2), 0]
+
+
+def battery_consumption(task):
+    base = 0.1
+    extra = {
+        "scan_area": 0.05,
+        "collect_sample": 0.1,
+        "analyze_environment": 0.02,
+    }.get(task, 0)
+    return base + extra
 
 
 def send_request(sock):
@@ -28,250 +50,295 @@ def send_ack(sock, seq, mission_id):
 # ---- EXECUÇÃO DAS MISSÕES ----
 
 def execute_scan_area(sock, mission_id, duration, interval, area, resolution):
-    """Varrimento em zig-zag: caminho discreto (grid) + updates sincronizados ao update_interval."""
-    print(f"[{rover_identity.ROVER_ID}] >>> Início da missão {mission_id} (SCAN AREA)")
+    global _current_status
+    task = "scan_area"
+    _current_status = "in_mission"
 
+    st = get_rover_state(rover_identity.ROVER_ID)
+    pos_x, pos_y = st["x"], st["y"]
+    battery = st["battery"]
+
+    drain = battery_consumption(task)
+
+    print(f"[{rover_identity.ROVER_ID}] >>> Início da missão {mission_id} ({task.upper()})")
+    
     x1, y1 = area[0]
     x2, y2 = area[1]
 
-    # suportar áreas em qualquer direção (x1>x2, y1>y2, etc.)
     sx = 1 if x2 >= x1 else -1
     sy = 1 if y2 >= y1 else -1
 
-    # número de colunas/linhas (INCLUSIVO no limite)
     ncols = int(abs(x2 - x1) / resolution) + 1
     nrows = int(abs(y2 - y1) / resolution) + 1
 
     xs = [x1 + sx * i * resolution for i in range(ncols)]
     ys = [y1 + sy * j * resolution for j in range(nrows)]
 
-    # construir caminho em zig-zag: linha 0 → esquerda→direita, linha 1 → direita→esquerda, ...
     path = []
     for j, y in enumerate(ys):
-        row_xs = xs if j % 2 == 0 else list(reversed(xs))
-        for x in row_xs:
-            path.append((round(x, 1), round(y, 1)))
+        row = xs if j % 2 == 0 else list(reversed(xs))
+        for x in row:
+            path.append((round(x,1), round(y,1)))
 
     total_steps = len(path)
-    if total_steps <= 1:
-        # caso degenerado (área minúscula)
-        payload = {
-            "mission_id": mission_id,
-            "task": "scan_area",
-            "progress": 1.0,
-            "status": "completed",
-            "position": [round(x2, 1), round(y2, 1)],
-        }
-        pkt = encode_msg(1, 1, 3, 0, payload)
-        sock.sendto(pkt, SERVER)
-        print(f"[{rover_identity.ROVER_ID}] {mission_id}: 100% (pos={x2:.1f},{y2:.1f})")
-        print(f"[{rover_identity.ROVER_ID}] Missão {mission_id} concluída.")
-        return
-
-    # tempo por waypoint para perfazer 'duration'
     step_time = duration / (total_steps - 1)
-    elapsed = 0.0
-    next_update = 0.0
+
+    elapsed = 0
+    next_update = 0
 
     for idx, (x, y) in enumerate(path):
+
+        # atualizar posição
+        pos_x, pos_y = x, y
+        update_rover_state(rover_identity.ROVER_ID, pos_x, pos_y)
+
+        # consumo de bateria
+        battery -= drain * step_time
+        if battery < 0:
+            battery = 0
+        update_rover_state(rover_identity.ROVER_ID, battery=battery)
+
+        # modo offline
+        if battery <= 0:
+            print(f"[{rover_identity.ROVER_ID}] ❌ Bateria esgotada! Rover offline.")
+            _current_status = "offline"
+            return
+
+        # modo charging
+        if battery < 20:
+            print(f"[{rover_identity.ROVER_ID}] 🔋 Bateria baixa. A carregar...")
+            while battery < 100:
+                time.sleep(1)
+                battery += 1.0
+                update_rover_state(rover_identity.ROVER_ID, battery=battery)
+            print(f"[{rover_identity.ROVER_ID}] 🔋 Carregado a 100%!")
+
         progress = idx / (total_steps - 1)
 
-        # enviar/printar apenas quando bate no update_interval (ou no último ponto)
         if elapsed >= next_update or idx == total_steps - 1:
             payload = {
                 "mission_id": mission_id,
-                "task": "scan_area",
+                "task": task,
                 "progress": round(progress, 2),
                 "status": "in_progress" if idx < total_steps - 1 else "completed",
-                "position": [x, y],
+                "position": [pos_x, pos_y]
             }
-            pkt = encode_msg(1, 1, 3, int(elapsed), payload)
+            pkt = encode_msg(1,1,3,int(elapsed),payload)
             sock.sendto(pkt, SERVER)
-            print(f"[{rover_identity.ROVER_ID}] {mission_id}: {progress*100:.0f}% (pos={x:.1f},{y:.1f})")
+
             next_update += interval
 
-        # avançar no “relógio” da missão
         time.sleep(step_time)
         elapsed += step_time
 
-    print(f"[{rover_identity.ROVER_ID}] Missão {mission_id} concluída.")
+    print(f"[{rover_identity.ROVER_ID}] ✔ Missão {mission_id} concluída.")
+    _current_status = "idle"
 
 
 def execute_collect_sample(sock, mission_id, duration, interval, points, sample_type):
-    print(f"[{rover_identity.ROVER_ID}] >>> Início da missão {mission_id} (COLLECT SAMPLE)")
-    pos = [random.uniform(0, 5), random.uniform(0, 5)]
+    global _current_status
+    task = "collect_sample"
+    _current_status = "in_mission"
+
+    st = get_rover_state(rover_identity.ROVER_ID)
+    pos_x, pos_y = st["x"], st["y"]
+    battery = st["battery"]
+    drain = battery_consumption(task)
+
+    print(f"[{rover_identity.ROVER_ID}] >>> Início da missão {mission_id} ({task.upper()})")
+
     total_points = len(points)
-
-    route = [pos] + points
-    dists = [((route[i+1][0] - route[i][0])**2 + (route[i+1][1] - route[i][1])**2)**0.5
-             for i in range(len(route)-1)]
-    total_dist = sum(dists)
-
-    move_time_total = duration * 0.85  # 85% a mover, 15% a recolher
-    collect_time_each = (duration - move_time_total) / total_points
-    speed = total_dist / move_time_total if move_time_total > 0 else 0.0
-
-    elapsed = 0.0
-    next_update = 0.0
-    collected = 0
     current_segment = 0
-    collecting_mode = False
-    collecting_point = None
+    elapsed = 0
+    next_update = 0
 
-    while elapsed < duration and current_segment < len(points):
+    # velocidade fictícia (tu tinhas esta lógica)
+    speed = 0.3
+
+    while elapsed < duration and current_segment < total_points:
+
         target = points[current_segment]
+        tx, ty = target
 
-        # se está a recolher, não se move até o próximo update_interval
-        if collecting_mode:
-            if elapsed >= next_update:
-                progress = min(elapsed / duration, 1)
-                payload = {
-                    "mission_id": mission_id,
-                    "task": "collect_sample",
-                    "progress": round(progress, 2),
-                    "status": "recolhendo",
-                    "position": [round(pos[0], 1), round(pos[1], 1)],
-                    "current_point": collecting_point,
-                    "sample_type": sample_type,
-                }
-                pkt = encode_msg(1, 1, 3, int(elapsed), payload)
-                sock.sendto(pkt, SERVER)
-                print(f"[{rover_identity.ROVER_ID}] {mission_id}: {progress*100:.0f}% recolhendo em {collecting_point}")
-                collected += 1
-                collecting_mode = False
-                current_segment += 1
-                next_update += interval  # volta ao ciclo normal
-            time.sleep(1)
-            elapsed += 1
-            continue
-
-        # calcular movimento até o ponto
-        dx = target[0] - pos[0]
-        dy = target[1] - pos[1]
+        dx = tx - pos_x
+        dy = ty - pos_y
         dist = (dx**2 + dy**2)**0.5
 
-        if dist < 0.1:  # chegou ao ponto
-            collecting_mode = True
-            collecting_point = target
-            # mantém posição fixa e espera até próximo update_interval
-        else:
-            # movimento normal
-            if dist > 0 and speed > 0:
-                step = min(speed, dist)
-                pos[0] += dx / dist * step
-                pos[1] += dy / dist * step
+        if dist < 0.2:
+            # recolha
+            print(f"[{rover_identity.ROVER_ID}] Recolhendo amostra em {target}...")
+            for _ in range(3):
+                time.sleep(1)
+                elapsed += 1
 
-        # enviar update apenas no tempo certo
-        if elapsed >= next_update or elapsed >= duration:
-            progress = min(elapsed / duration, 1)
-            status = "recolhendo" if collecting_mode else "movendo"
+                battery -= drain
+                if battery <= 0:
+                    update_rover_state(rover_identity.ROVER_ID, battery=0)
+                    print(f"[{rover_identity.ROVER_ID}] ❌ Rover sem bateria.")
+                    _current_status = "offline"
+                    return
+
+                update_rover_state(rover_identity.ROVER_ID, battery=battery)
+
+            current_segment += 1
+
+        else:
+            # movimento
+            step = min(speed, dist)
+            pos_x += dx/dist * step
+            pos_y += dy/dist * step
+
+            update_rover_state(rover_identity.ROVER_ID, x=pos_x, y=pos_y)
+
+            time.sleep(1)
+            elapsed += 1
+
+            battery -= drain
+            if battery <= 0:
+                update_rover_state(rover_identity.ROVER_ID, battery=0)
+                print(f"[{rover_identity.ROVER_ID}] ❌ Rover sem bateria.")
+                _current_status = "offline"
+                return
+
+            if battery < 20:
+                print(f"[{rover_identity.ROVER_ID}] 🔋 Bateria baixa. A carregar...")
+                while battery < 100:
+                    time.sleep(1)
+                    battery += 1
+                    update_rover_state(rover_identity.ROVER_ID, battery=battery)
+                print(f"[{rover_identity.ROVER_ID}] 🔋 Carregado.")
+
+            update_rover_state(rover_identity.ROVER_ID, battery=battery)
+
+        # enviar update à nave-mãe
+        if elapsed >= next_update:
+            progress = elapsed / duration
             payload = {
                 "mission_id": mission_id,
-                "task": "collect_sample",
+                "task": task,
                 "progress": round(progress, 2),
-                "status": status,
-                "position": [round(pos[0], 1), round(pos[1], 1)],
-                "current_point": target,
-                "sample_type": sample_type,
+                "status": "in_progress",
+                "position": [round(pos_x,1), round(pos_y,1)],
+                "current_point": target
             }
-            pkt = encode_msg(1, 1, 3, int(elapsed), payload)
+            pkt = encode_msg(1,1,3,int(elapsed),payload)
             sock.sendto(pkt, SERVER)
-            print(
-                f"[{rover_identity.ROVER_ID}] {mission_id}: {progress*100:.0f}% {status} "
-                f"(pos={pos[0]:.1f},{pos[1]:.1f}) → alvo {target}"
-            )
             next_update += interval
 
-        time.sleep(1)
-        elapsed += 1
-
-    # garantir update final a 100%
+    # final
     payload = {
         "mission_id": mission_id,
-        "task": "collect_sample",
+        "task": task,
         "progress": 1.0,
         "status": "completed",
-        "position": [round(pos[0], 1), round(pos[1], 1)],
-        "sample_type": sample_type,
+        "position": [round(pos_x,1), round(pos_y,1)],
+        "sample_type": sample_type
     }
-    pkt = encode_msg(1, 1, 3, int(elapsed), payload)
+    pkt = encode_msg(1,1,3,int(elapsed),payload)
     sock.sendto(pkt, SERVER)
-    print(f"[{rover_identity.ROVER_ID}] {mission_id}: 100% completed em {pos}")
-    if collected < len(points):
-        print(
-            f"[{rover_identity.ROVER_ID}] ⚠️ Missão {mission_id} terminou antes de recolher todas as amostras "
-            f"({collected}/{len(points)})"
-        )
-    else:
-        print(
-            f"[{rover_identity.ROVER_ID}] ✅ Todas as amostras recolhidas com sucesso ({collected}/{len(points)})"
-        )
+
+    print(f"[{rover_identity.ROVER_ID}] ✔ Missão {mission_id} concluída.")
+    _current_status = "idle"
 
 
 def execute_analyze_environment(sock, mission_id, duration, interval, area, sensors):
-    """Analisa ambiente com movimento circular e variação realista (ciclo diurno estável)."""
-    steps = duration // interval
-    print(f"[{rover_identity.ROVER_ID}] >>> Início da missão {mission_id} (ANALYZE ENVIRONMENT)")
+    global _current_status
+    task = "analyze_environment"
+    _current_status = "in_mission"
 
-    base_temp = -50
-    temp_amplitude = 30  # variação máxima de ±15 °C em torno do base_temp
-    base_rad = 2.5
-    rad_amplitude = 1.5
+    st = get_rover_state(rover_identity.ROVER_ID)
+    pos_x, pos_y = st["x"], st["y"]
+    battery = st["battery"]
+    drain = battery_consumption(task)
+
+    print(f"[{rover_identity.ROVER_ID}] >>> Início da missão {mission_id} (ANALYZE)")
+
+    steps = max(1, duration // interval)
 
     for i in range(1, steps + 1):
-        angle = (i / steps) * 2 * math.pi
-        # movimento circular dentro da área (hardcoded para [10,10] +- raio, como já tinhas)
-        x = 10 + 2.5 * math.cos(angle)
-        y = 10 + 2.5 * math.sin(angle)
 
-        # ciclo solar suave
-        sun = (math.cos(angle - math.pi/2) + 1) / 2  # valor entre 0 e 1
+        # posição circular realista
+        angle = (i / steps) * 2 * math.pi
+        pos_x = 10 + 2.5 * math.cos(angle)
+        pos_y = 10 + 2.5 * math.sin(angle)
+
+        update_rover_state(rover_identity.ROVER_ID, x=pos_x, y=pos_y)
+
+        # bateria
+        battery -= drain * interval
+        if battery <= 0:
+            update_rover_state(rover_identity.ROVER_ID, battery=0)
+            print(f"[{rover_identity.ROVER_ID}] ❌ Ficou sem bateria.")
+            _current_status = "offline"
+            return
+
+        if battery < 20:
+            print(f"[{rover_identity.ROVER_ID}] 🔋 Bateria baixa. A carregar...")
+            while battery < 100:
+                time.sleep(1)
+                battery += 1
+                update_rover_state(rover_identity.ROVER_ID, battery=battery)
+            print(f"[{rover_identity.ROVER_ID}] 🔋 Carregado.")
+
+        update_rover_state(rover_identity.ROVER_ID, battery=battery)
+
+        # dados ambientais
+        sun = (math.cos(angle - math.pi/2) + 1) / 2
         data = {}
 
         if "temperature" in sensors:
-            temp = base_temp + temp_amplitude * math.cos(angle - math.pi/4)
-            data["temperature"] = round(temp, 1)
+            data["temperature"] = round(-50 + 30 * math.cos(angle), 1)
         if "radiation" in sensors:
-            rad = base_rad + rad_amplitude * sun
-            data["radiation"] = round(rad, 2)
+            data["radiation"] = round(2.5 + 1.5 * sun, 2)
         if "dust_level" in sensors:
-            dust = (1 - sun) * 60 + random.uniform(-3, 3)
-            data["dust_level"] = round(max(0, min(100, dust)), 1)
+            data["dust_level"] = round((1-sun)*60 + random.uniform(-3,3), 1)
 
         progress = i / steps
+
         payload = {
             "mission_id": mission_id,
-            "task": "analyze_environment",
+            "task": task,
             "progress": progress,
-            "position": [x, y],
-            "data": data,
-            "status": "analyzing"
+            "status": "analyzing",
+            "position": [round(pos_x,1), round(pos_y,1)],
+            "data": data
         }
-        pkt = encode_msg(1, 1, 3, i, payload)
+
+        pkt = encode_msg(1,1,3,i,payload)
         sock.sendto(pkt, SERVER)
 
-        print(f"[{rover_identity.ROVER_ID}] {mission_id}: {progress*100:.0f}% pos({x:.1f},{y:.1f}) {data}")
         time.sleep(interval)
 
-    print(f"[{rover_identity.ROVER_ID}] Missão {mission_id} concluída.")
+    print(f"[{rover_identity.ROVER_ID}] ✔ Missão {mission_id} concluída.")
+    _current_status = "idle"
 
 
 def execute_mission(sock, payload):
+    global _current_status     # <-- IMPORTANTE
+
     task = payload.get("task", "")
     mission_id = payload["mission_id"]
     duration = payload.get("duration", 120)
     interval = payload.get("update_interval", 10)
 
+    _current_status = "in_mission"
+
     if task == "scan_area":
-        execute_scan_area(sock, mission_id, duration, interval, payload["area"], payload.get("resolution", 1.0))
+        execute_scan_area(sock, mission_id, duration, interval,
+                          payload["area"], payload.get("resolution", 1.0))
+
     elif task == "collect_sample":
-        execute_collect_sample(sock, mission_id, duration, interval, payload["points"],
-                               payload.get("sample_type", "rock"))
+        execute_collect_sample(sock, mission_id, duration, interval,
+                               payload["points"], payload.get("sample_type", "rock"))
+
     elif task == "analyze_environment":
         execute_analyze_environment(sock, mission_id, duration, interval,
-                                    payload.get("area", []), payload.get("sensors", []))
+                                    payload.get("area", []),
+                                    payload.get("sensors", []))
     else:
         print(f"[{rover_identity.ROVER_ID}] Tipo de missão desconhecido: {task}")
+
+    _current_status = "idle"
 
 
 def missionlink_listener(sock):

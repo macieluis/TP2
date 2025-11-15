@@ -708,5 +708,392 @@
     "mission_id": "M-856",
     "status": "in_progress",
     "progress": 12.0
+  },
+  {
+    "timestamp": "2025-11-14 21:18:38",
+    "rover": "('127.0.0.1', 64343)",
+    "mission_id": "M-484",
+    "status": "movendo",
+    "progress": 0.0
+  },
+  {
+    "timestamp": "2025-11-14 21:18:38",
+    "rover": "('127.0.0.1', 64343)",
+    "mission_id": "M-484",
+    "status": "assigned"
+  },
+  {
+    "timestamp": "2025-11-14 21:18:38",
+    "rover": "('127.0.0.1', 64343)",
+    "mission_id": "M-484",
+    "status": "assigned (collect_sample)"
+  },
+  {
+    "timestamp": "2025-11-14 21:18:48",
+    "rover": "('127.0.0.1', 64343)",
+    "mission_id": "M-484",
+    "status": "recolhendo",
+    "progress": 4.0
+  },
+  {
+    "timestamp": "2025-11-14 21:18:58",
+    "rover": "('127.0.0.1', 64343)",
+    "mission_id": "M-484",
+    "status": "recolhendo",
+    "progress": 8.0
+  },
+  {
+    "timestamp": "2025-11-14 21:19:08",
+    "rover": "('127.0.0.1', 64343)",
+    "mission_id": "M-484",
+    "status": "movendo",
+    "progress": 12.0
+  },
+  {
+    "timestamp": "2025-11-14 21:19:09",
+    "rover": "('127.0.0.1', 59017)",
+    "mission_id": "M-312",
+    "status": "movendo",
+    "progress": 0.0
+  },
+  {
+    "timestamp": "2025-11-14 21:19:09",
+    "rover": "('127.0.0.1', 59017)",
+    "mission_id": "M-312",
+    "status": "assigned"
+  },
+  {
+    "timestamp": "2025-11-14 21:19:09",
+    "rover": "('127.0.0.1', 59017)",
+    "mission_id": "M-312",
+    "status": "assigned (collect_sample)"
+  },
+  {
+    "timestamp": "2025-11-14 21:19:19",
+    "rover": "('127.0.0.1', 64343)",
+    "mission_id": "M-484",
+    "status": "movendo",
+    "progress": 17.0
+  },
+  {
+    "timestamp": "2025-11-14 21:19:24",
+    "rover": "('127.0.0.1', 59017)",
+    "mission_id": "M-312",
+    "status": "recolhendo",
+    "progress": 8.0
+  },
+  {
+    "timestamp": "2025-11-14 21:54:59",
+    "rover": "('127.0.0.1', 64974)",
+    "mission_id": "M-072",
+    "status": "in_progress",
+    "progress": 0.0
+  },
+  {
+    "timestamp": "2025-11-14 21:54:59",
+    "rover": "('127.0.0.1', 64974)",
+    "mission_id": "M-072",
+    "status": "assigned"
+  },
+  {
+    "timestamp": "2025-11-14 21:54:59",
+    "rover": "('127.0.0.1', 64974)",
+    "mission_id": "M-072",
+    "status": "assigned (scan_area)"
+  },
+  {
+    "timestamp": "2025-11-14 22:29:07",
+    "rover": "('127.0.0.1', 60519)",
+    "mission_id": "M-202",
+    "status": "analyzing",
+    "progress": 11.1
+  },
+  {
+    "timestamp": "2025-11-14 22:29:07",
+    "rover": "('127.0.0.1', 60519)",
+    "mission_id": "M-202",
+    "status": "assigned"
+  },
+  {
+    "timestamp": "2025-11-14 22:29:07",
+    "rover": "('127.0.0.1', 60519)",
+    "mission_id": "M-202",
+    "status": "assigned (analyze_environment)"
+  },
+  {
+    "timestamp": "2025-11-14 22:29:27",
+    "rover": "('127.0.0.1', 60519)",
+    "mission_id": "M-202",
+    "status": "analyzing",
+    "progress": 22.2
+  },
+  {
+    "timestamp": "2025-11-14 22:29:47",
+    "rover": "('127.0.0.1', 60519)",
+    "mission_id": "M-202",
+    "status": "analyzing",
+    "progress": 33.3
+  },
+  {
+    "timestamp": "2025-11-15 13:14:34",
+    "rover": "('127.0.0.1', 54778)",
+    "mission_id": "M-545",
+    "status": "in_progress",
+    "progress": 0.0
+  },
+  {
+    "timestamp": "2025-11-15 13:14:34",
+    "rover": "('127.0.0.1', 54778)",
+    "mission_id": "M-545",
+    "status": "assigned"
+  },
+  {
+    "timestamp": "2025-11-15 13:14:34",
+    "rover": "('127.0.0.1', 54778)",
+    "mission_id": "M-545",
+    "status": "assigned (scan_area)"
+  },
+  {
+    "timestamp": "2025-11-15 17:17:46",
+    "rover": "('127.0.0.1', 51453)",
+    "mission_id": "M-510",
+    "status": "assigned"
+  },
+  {
+    "timestamp": "2025-11-15 17:17:46",
+    "rover": "('127.0.0.1', 51453)",
+    "mission_id": "M-510",
+    "status": "in_progress",
+    "progress": 0.0
+  },
+  {
+    "timestamp": "2025-11-15 17:17:46",
+    "rover": "('127.0.0.1', 51453)",
+    "mission_id": "M-510",
+    "status": "assigned (scan_area)"
+  },
+  {
+    "timestamp": "2025-11-15 17:20:14",
+    "rover": "('127.0.0.1', 55608)",
+    "mission_id": "M-267",
+    "status": "assigned"
+  },
+  {
+    "timestamp": "2025-11-15 17:20:14",
+    "rover": "('127.0.0.1', 55608)",
+    "mission_id": "M-267",
+    "status": "in_progress",
+    "progress": 0.0
+  },
+  {
+    "timestamp": "2025-11-15 17:20:14",
+    "rover": "('127.0.0.1', 55608)",
+    "mission_id": "M-267",
+    "status": "assigned (scan_area)"
+  },
+  {
+    "timestamp": "2025-11-15 17:21:59",
+    "rover": "('127.0.0.1', 55608)",
+    "mission_id": "M-267",
+    "status": "in_progress",
+    "progress": 58.0
+  },
+  {
+    "timestamp": "2025-11-15 17:22:12",
+    "rover": "('127.0.0.1', 55062)",
+    "mission_id": "M-020",
+    "status": "in_progress",
+    "progress": 0.0
+  },
+  {
+    "timestamp": "2025-11-15 17:22:13",
+    "rover": "('127.0.0.1', 55062)",
+    "mission_id": "M-020",
+    "status": "assigned"
+  },
+  {
+    "timestamp": "2025-11-15 17:22:13",
+    "rover": "('127.0.0.1', 55062)",
+    "mission_id": "M-020",
+    "status": "assigned (scan_area)"
+  },
+  {
+    "timestamp": "2025-11-15 17:22:28",
+    "rover": "('127.0.0.1', 55062)",
+    "mission_id": "M-020",
+    "status": "in_progress",
+    "progress": 12.0
+  },
+  {
+    "timestamp": "2025-11-15 17:22:43",
+    "rover": "('127.0.0.1', 55062)",
+    "mission_id": "M-020",
+    "status": "in_progress",
+    "progress": 25.0
+  },
+  {
+    "timestamp": "2025-11-15 17:55:18",
+    "rover": "('127.0.0.1', 58543)",
+    "mission_id": "M-100",
+    "status": "in_progress",
+    "progress": 0.0
+  },
+  {
+    "timestamp": "2025-11-15 17:55:29",
+    "rover": "('127.0.0.1', 58543)",
+    "mission_id": "M-100",
+    "status": "in_progress",
+    "progress": 6.0
+  },
+  {
+    "timestamp": "2025-11-15 17:55:39",
+    "rover": "('127.0.0.1', 58543)",
+    "mission_id": "M-100",
+    "status": "in_progress",
+    "progress": 12.0
+  },
+  {
+    "timestamp": "2025-11-15 17:55:48",
+    "rover": "('127.0.0.1', 58543)",
+    "mission_id": "M-100",
+    "status": "in_progress",
+    "progress": 17.0
+  },
+  {
+    "timestamp": "2025-11-15 17:55:59",
+    "rover": "('127.0.0.1', 58543)",
+    "mission_id": "M-100",
+    "status": "in_progress",
+    "progress": 23.0
+  },
+  {
+    "timestamp": "2025-11-15 17:56:10",
+    "rover": "('127.0.0.1', 58543)",
+    "mission_id": "M-100",
+    "status": "in_progress",
+    "progress": 28.0
+  },
+  {
+    "timestamp": "2025-11-15 17:56:19",
+    "rover": "('127.0.0.1', 58543)",
+    "mission_id": "M-100",
+    "status": "in_progress",
+    "progress": 33.0
+  },
+  {
+    "timestamp": "2025-11-15 17:56:29",
+    "rover": "('127.0.0.1', 58543)",
+    "mission_id": "M-100",
+    "status": "in_progress",
+    "progress": 39.0
+  },
+  {
+    "timestamp": "2025-11-15 17:56:40",
+    "rover": "('127.0.0.1', 58543)",
+    "mission_id": "M-100",
+    "status": "in_progress",
+    "progress": 45.0
+  },
+  {
+    "timestamp": "2025-11-15 17:56:49",
+    "rover": "('127.0.0.1', 58543)",
+    "mission_id": "M-100",
+    "status": "in_progress",
+    "progress": 50.0
+  },
+  {
+    "timestamp": "2025-11-15 17:56:59",
+    "rover": "('127.0.0.1', 58543)",
+    "mission_id": "M-100",
+    "status": "in_progress",
+    "progress": 56.0
+  },
+  {
+    "timestamp": "2025-11-15 17:57:10",
+    "rover": "('127.0.0.1', 58543)",
+    "mission_id": "M-100",
+    "status": "in_progress",
+    "progress": 62.0
+  },
+  {
+    "timestamp": "2025-11-15 17:57:19",
+    "rover": "('127.0.0.1', 58543)",
+    "mission_id": "M-100",
+    "status": "in_progress",
+    "progress": 67.0
+  },
+  {
+    "timestamp": "2025-11-15 17:57:29",
+    "rover": "('127.0.0.1', 58543)",
+    "mission_id": "M-100",
+    "status": "in_progress",
+    "progress": 72.0
+  },
+  {
+    "timestamp": "2025-11-15 17:57:40",
+    "rover": "('127.0.0.1', 58543)",
+    "mission_id": "M-100",
+    "status": "in_progress",
+    "progress": 78.0
+  },
+  {
+    "timestamp": "2025-11-15 17:57:49",
+    "rover": "('127.0.0.1', 58543)",
+    "mission_id": "M-100",
+    "status": "in_progress",
+    "progress": 83.0
+  },
+  {
+    "timestamp": "2025-11-15 17:58:00",
+    "rover": "('127.0.0.1', 58543)",
+    "mission_id": "M-100",
+    "status": "in_progress",
+    "progress": 89.0
+  },
+  {
+    "timestamp": "2025-11-15 17:58:10",
+    "rover": "('127.0.0.1', 58543)",
+    "mission_id": "M-100",
+    "status": "in_progress",
+    "progress": 95.0
+  },
+  {
+    "timestamp": "2025-11-15 17:58:19",
+    "rover": "('127.0.0.1', 58543)",
+    "mission_id": "M-100",
+    "status": "completed",
+    "progress": 100.0
+  },
+  {
+    "timestamp": "2025-11-15 17:58:19",
+    "rover": "('127.0.0.1', 58543)",
+    "mission_id": "M-100",
+    "status": "completed"
+  },
+  {
+    "timestamp": "2025-11-15 18:33:36",
+    "rover": "('127.0.0.1', 61425)",
+    "mission_id": "M-534",
+    "status": "in_progress",
+    "progress": 0.0
+  },
+  {
+    "timestamp": "2025-11-15 18:33:36",
+    "rover": "('127.0.0.1', 61425)",
+    "mission_id": "M-534",
+    "status": "assigned"
+  },
+  {
+    "timestamp": "2025-11-15 18:33:37",
+    "rover": "('127.0.0.1', 61425)",
+    "mission_id": "M-534",
+    "status": "assigned (scan_area)"
+  },
+  {
+    "timestamp": "2025-11-15 18:33:46",
+    "rover": "('127.0.0.1', 61425)",
+    "mission_id": "M-534",
+    "status": "in_progress",
+    "progress": 4.0
   }
 ]
