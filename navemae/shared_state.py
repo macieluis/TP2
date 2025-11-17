@@ -1,4 +1,6 @@
 # Armazena dados globais (missões, telemetria)
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import json, threading, os, time
 

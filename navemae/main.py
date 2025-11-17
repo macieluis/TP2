@@ -1,47 +1,67 @@
 # navemae/main.py
-import threading, time
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from telemetry_server import start_telemetry_server
+import threading
+import time
 from missionlink_server import start_missionlink
+from telemetry_server import start_telemetry_server
 from state.rover_state import get_snapshot, apply_timeouts
-from common.logger_ml import print_mission_summary
+
+RUNNING = True
 
 
-def state_monitor():
-    while True:
+def printer_loop():
+    """Imprime o estado global de forma limpa e sem spam."""
+    while RUNNING:
         time.sleep(5)
-        apply_timeouts()
-        snap = get_snapshot()
+
+        snapshot = get_snapshot()
         print("\n===== ESTADO GLOBAL DOS ROVERS =====")
-        if not snap:
+
+        if not snapshot:
             print("(sem rovers ainda)")
         else:
-            for rid, info in snap.items():
-                alive = "🟢" if info.get("alive") else "🔴"
-                pos = info.get("position")
-                batt = info.get("battery")
-                status = info.get("status")
-                mid = info.get("mission_id", "—")
-                prog = info.get("mission_progress", 0.0)
-                print(f"{alive} {rid}: pos={pos} | batt={batt}% | status={status} | missão={mid} ({prog*100:.0f}%)")
-        print("====================================\n")
+            for rid, r in snapshot.items():
+                pos = r.get("position")
+                batt = r.get("battery")
+                stat = r.get("status")
+                mid = r.get("mission_id")
+                prog = r.get("mission_progress")
+
+                pos_s = "None" if pos is None else f"[{pos[0]}, {pos[1]}, {pos[2]}]"
+                batt_s = "None" if batt is None else f"{batt:.1f}%"
+                prog_s = "-" if prog is None else f"{prog:.0f}%"
+                mid_s  = "—" if mid is None else mid
+
+                alive = r.get("alive", False)
+                flag = "🟢" if alive else "🔴"
+
+                print(f"{flag} {rid}: pos={pos_s} | batt={batt_s} | status={stat} | missão={mid_s} ({prog_s})")
+
+        print("====================================")
 
 
 def main():
+    global RUNNING
     print("[NM] A iniciar TelemetryStream e MissionLink...")
 
-    t_ts = threading.Thread(target=start_telemetry_server, daemon=True)
-    t_ts.start()
+    # Servidor de telemetria TCP
+    threading.Thread(target=start_telemetry_server, daemon=True).start()
 
-    t_state = threading.Thread(target=state_monitor, daemon=True)
-    t_state.start()
+    # Servidor ML UDP
+    threading.Thread(target=start_missionlink, daemon=True).start()
+
+    # Thread de output organizado
+    threading.Thread(target=printer_loop, daemon=True).start()
 
     try:
-        start_missionlink()  # bloqueia até Ctrl+C
+        while True:
+            time.sleep(1)
+            apply_timeouts()   # marca rovers offline se deixarem de enviar TS/ML
     except KeyboardInterrupt:
-        print("\n[SERVER] A terminar...")
-    finally:
-        print_mission_summary()
+        RUNNING = False
+        print("\n[NM] Encerrado manualmente.")
 
 
 if __name__ == "__main__":

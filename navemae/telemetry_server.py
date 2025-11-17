@@ -1,91 +1,111 @@
-# navemae/telemetry_server.py
+# ============================
+# TelemetryStream - Nave-Mãe
+# TCP (porta 6000)
+# ============================
 import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import socket
 import threading
 import struct
+import time
+
 from common.codec import decode_msg
-from state.rover_state import update_telemetry, mark_disconnected
+from state.rover_state import (
+    update_telemetry,
+    mark_disconnected,
+    touch_heartbeat,
+)
 
 HOST = "0.0.0.0"
 PORT = 6000
 
 
-def _handle_client(conn, addr):
-    print(f"[TS] Ligação de {addr}")
-    buf = b""
+def handle_client(conn, addr):
     rover_id = None
+    print(f"[TS] Ligação de {addr}")
 
     try:
         while True:
-            chunk = conn.recv(4096)
-            if not chunk:
+            header = conn.recv(4)
+            if not header:
                 break
-            buf += chunk
 
-            # framing: enquanto houver pelo menos cabeçalho
-            while len(buf) >= 8:
-                header = buf[:8]
-                # mesmo formato do common.codec: "!BBBHBBB"
-                version, msg_type, action, seq_hi, seq_lo, length, checksum = struct.unpack("!BBBHBBB", header)
+            msg_len = struct.unpack("!I", header)[0]
+            data = conn.recv(msg_len)
+            if not data:
+                break
 
-                total_len = 8 + length
-                if len(buf) < total_len:
-                    # ainda não chegou o payload todo
-                    break
+            msg = decode_msg(header + data)
 
-                packet = buf[:total_len]
-                buf = buf[total_len:]
+            if msg is None:
+                print(f"[TS] ERRO a decodificar {addr}: Checksum inválido")
+                continue
 
-                try:
-                    msg = decode_msg(packet)
-                except Exception as e:
-                    print(f"[TS] ERRO ao decodificar de {addr}: {e}")
-                    continue
+            msg_type = msg["msg_type"]
+            payload = msg["payload"]
 
-                pl = msg["payload"]
-                act = msg["action"]
+            # ──────────────────────────────────────────────────────────────
+            #  1 → CONNECT
+            # ──────────────────────────────────────────────────────────────
+            if msg_type == 1:
+                rover_id = payload["rover_id"]
+                print(f"[TS] {rover_id} conectado.")
 
-                if act == 1:  # connect
-                    rover_id = pl.get("rover_id", "?")
-                    print(f"[TS] {rover_id} conectado.")
+                update_telemetry(
+                    rover_id=rover_id,
+                    position=[0.0, 0.0, 0.0],
+                    battery=100.0,
+                    status="idle",
+                    speed=0.0,
+                )
+                continue
 
-                elif act == 2:  # telemetry_update
-                    rover_id = pl.get("rover_id", rover_id)
-                    pos = pl.get("position")
-                    batt = pl.get("battery")
-                    status = pl.get("status")
-                    speed = pl.get("speed")
-                    ts = pl.get("timestamp")
+            # ──────────────────────────────────────────────────────────────
+            #  2 → TELEMETRY UPDATE
+            # ──────────────────────────────────────────────────────────────
+            if msg_type == 2:
+                rover_id = payload["rover_id"]
 
-                    # atualiza estado global
-                    if rover_id is not None:
-                        update_telemetry(rover_id, pos, batt, status, speed)
+                update_telemetry(
+                    rover_id=rover_id,
+                    position=payload["position"],
+                    battery=payload["battery"],
+                    status=payload["status"],
+                    speed=payload["speed"],
+                )
 
-                    print(f"[TS] {rover_id} → pos={pos} | batt={batt}% | status={status} | speed={speed}")
+                print(f"[TS] {rover_id} → pos={payload['position']} | "
+                      f"batt={payload['battery']}% | status={payload['status']} | speed={payload['speed']}")
+                continue
 
-                elif act == 4:  # heartbeat
-                    rid = pl.get("rover_id", rover_id)
-                    print(f"[TS] Heartbeat de {rid}")
+            # ──────────────────────────────────────────────────────────────
+            #  4 → HEARTBEAT
+            # ──────────────────────────────────────────────────────────────
+            if msg_type == 4:
+                rover_id = payload["rover_id"]
+                touch_heartbeat(rover_id)
+                print(f"[TS] Heartbeat de {rover_id}")
+                continue
 
-                elif act == 5:  # disconnect
-                    rid = pl.get("rover_id", rover_id)
-                    print(f"[TS] {rid} desconectou ({pl.get('reason', '')})")
-                    if rid:
-                        mark_disconnected(rid)
-                    return
+            # ──────────────────────────────────────────────────────────────
+            #  5 → DISCONNECT
+            # ──────────────────────────────────────────────────────────────
+            if msg_type == 5:
+                rover_id = payload["rover_id"]
+                print(f"[TS] {rover_id} → Disconnect ({payload.get('reason', '')})")
+                break
 
-                else:
-                    rid = pl.get("rover_id", rover_id)
-                    print(f"[TS] Ação desconhecida {act} de {rid}")
+    except ConnectionResetError:
+        print(f"[TS] Ligação perdida com {addr}")
 
     except Exception as e:
         print(f"[TS] Erro na ligação {addr}: {e}")
+
     finally:
-        conn.close()
         if rover_id:
             mark_disconnected(rover_id)
+        conn.close()
         print(f"[TS] Ligação encerrada: {addr}")
 
 
@@ -94,17 +114,9 @@ def start_telemetry_server():
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     srv.bind((HOST, PORT))
     srv.listen()
+
     print(f"[TS] Servidor ativo em {HOST}:{PORT}")
 
-    try:
-        while True:
-            conn, addr = srv.accept()
-            threading.Thread(target=_handle_client, args=(conn, addr), daemon=True).start()
-    except KeyboardInterrupt:
-        print("\n[TS] Servidor TS encerrado manualmente.")
-    finally:
-        srv.close()
-
-
-if __name__ == "__main__":
-    start_telemetry_server()
+    while True:
+        conn, addr = srv.accept()
+        threading.Thread(target=handle_client, args=(conn, addr), daemon=True).start()

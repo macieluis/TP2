@@ -1,25 +1,42 @@
-import struct, json
+# common/codec.py
+import struct
+import json
+
+# Header: version (B), msg_type (B), action (B), seq (H), length (H), checksum (B)
+HEADER_FMT = "!BBBHHB"
+HEADER_SIZE = struct.calcsize(HEADER_FMT)
+
 
 def encode_msg(version, msg_type, action, seq, payload):
     body = json.dumps(payload).encode("utf-8")
-    length = len(body) % 256
+    length = len(body)              # <-- agora é o tamanho REAL (uint16)
     checksum = sum(body) % 256
-    header = struct.pack("!BBBHBBB", version, msg_type, action, seq >> 8, seq & 0xFF, length, checksum)
+
+    header = struct.pack(HEADER_FMT, version, msg_type, action, seq, length, checksum)
     return header + body
 
+
 def decode_msg(packet):
-    header = packet[:8]
-    payload = packet[8:]
-    version, msg_type, action, seq_hi, seq_lo, length, checksum = struct.unpack("!BBBHBBB", header)
-    seq = (seq_hi << 8) | seq_lo
+    if len(packet) < HEADER_SIZE:
+        raise ValueError("Pacote demasiado pequeno para header")
+
+    header = packet[:HEADER_SIZE]
+    payload = packet[HEADER_SIZE:]
+
+    version, msg_type, action, seq, length, checksum = struct.unpack(HEADER_FMT, header)
+
+    if len(payload) != length:
+        raise ValueError(f"Comprimento inválido (esperado {length}, recebido {len(payload)})")
+
     if sum(payload) % 256 != checksum:
         raise ValueError("Checksum inválido")
+
     data = json.loads(payload.decode("utf-8"))
     return {
         "version": version,
         "msg_type": msg_type,
         "action": action,
         "seq": seq,
-        "payload": data
+        "payload": data,
     }
 

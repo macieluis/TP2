@@ -1,26 +1,42 @@
 # rover/main.py
 import threading
-from rover_identity import choose_rover_id
 import rover_identity
+from rover_identity import choose_rover_id, POSITION, BATTERY
+from missionlink_client import start_missionlink
 from telemetry_client import start_telemetry
-from missionlink_client import start_missionlink, get_mission_status  # já tens isto
+
 
 def main():
     print(">>> main iniciou")
     choose_rover_id()
 
-    # thread para TS (status vem do MissionLink)
-    threading.Thread(
-        target=start_telemetry,
-        args=(get_mission_status,),   # task_provider podes deixar None por agora
-        daemon=True
-    ).start()
+    # Funções que o TS vai usar para ir buscar estado *sempre atualizado*
+    def get_pos():
+        return rover_identity.POSITION
 
-    # MissionLink mantém o programa vivo
+    def get_status():
+        return "in_mission"   # o ML atualiza isto dinamicamente mais tarde
+                              # mas TS só precisa saber “não-offline”
+
+    def get_task():
+        return None           # ML mete isto quando começar missão
+
+    # a bateria é mutável → passar referência
+    battery_ref = rover_identity
+
+    # Thread do TelemetryStream
+    ts_thread = threading.Thread(
+        target=start_telemetry,
+        args=(get_pos, get_status, get_task, battery_ref),
+        daemon=True
+    )
+    ts_thread.start()
+
+    # MissionLink corre no main thread
     try:
         start_missionlink()
     except KeyboardInterrupt:
-        print(f"\n[{rover_identity.ROVER_ID}] Rover encerrado.")
+        print(f"[{rover_identity.ROVER_ID}] MissionLink encerrado manualmente.")
 
 
 if __name__ == "__main__":

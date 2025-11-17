@@ -11,122 +11,95 @@ import rover_identity
 SERVER = ("127.0.0.1", 6000)
 SEQ = 1
 
-# Consumos (em % de bateria por segundo)
-BASE_DRAIN = 0.1
-TASK_DRAIN = {
-    "scan_area": 0.05,
-    "collect_sample": 0.10,
-    "analyze_environment": 0.02,
-    "idle": 0.0,
-    "charging": -1.0,   # carrega 1%/s
+
+def send(sock, action, payload):
+    global SEQ
+    pkt = encode_msg(
+        version=1,
+        msg_type=2,    # TelemetryStream
+        action=action,
+        seq=SEQ,
+        payload=payload
+    )
+    sock.sendall(pkt)
+    SEQ = (SEQ + 1) % 65536
+
+
+# ===============================
+#  BATERIA: modelo realista
+# ===============================
+
+CONSUMPTION = {
+    "idle": 0.10,
+    "in_mission": 0.10,
+    "scan_area": 0.15,
+    "collect_sample": 0.20,
+    "analyze_environment": 0.12,
 }
 
+def compute_battery(batt, status, task, dt):
+    if batt <= 0:
+        return 0.0
 
-def _next_seq():
-    global SEQ
-    s = SEQ
-    SEQ = (SEQ + 1) % 65536
-    return s
+    if batt < 20:
+        return min(100.0, batt + (1.0 * dt))  # carrega 1%/s
+
+    base = CONSUMPTION.get(status, 0.10)
+    extra = CONSUMPTION.get(task, 0.0)
+
+    drain = (base + extra) * dt
+    batt = max(0.0, batt - drain)
+    return batt
 
 
-def _send(sock, action, payload):
-    # msg_type = 2 → TelemetryStream
-    pkt = encode_msg(1, 2, action, _next_seq(), payload)
-    sock.sendall(pkt)
+# ==========================================================
+#   TELEMETRY LOOP
+#   posição = exatamente a mesma que o MissionLink usa
+# ==========================================================
 
-
-def telemetry_loop(sock, status_provider, task_provider=None):
+def telemetry_loop(sock, get_current_position, get_current_status, get_current_task, battery_ref):
     """
-    status_provider(): devolve string ('idle', 'in_mission', 'charging', 'offline', ...)
-    task_provider(): devolve nome da task atual ('scan_area', 'collect_sample', 'analyze_environment') ou None
+    Rover não calcula posição aqui.  
+    Apenas envia a posição atual *decidida pelo MissionLink* (via missionlink_client).
     """
-
-    # aqui podias no futuro ler de ficheiro para manter posição/bateria entre execuções
-    position = [0.0, 0.0, 0]   # x, y, z
-    battery = 100.0
-    speed = 0.0
+    last = time.time()
 
     try:
-        # mensagem connect
-        _send(sock, 1, {"rover_id": rover_identity.ROVER_ID, "timestamp": time.time()})
-        print(f"[{rover_identity.ROVER_ID}] Ligado ao TelemetryStream.")
-
         while True:
-            status = status_provider() or "idle"
+            now = time.time()
+            dt = now - last
+            last = now
 
-            # descobrir task actual (se o ML quiser dizer, senão assume genérico)
-            task = None
-            if task_provider is not None:
-                task = task_provider()
-            if task is None:
-                task = "scan_area" if status == "in_mission" else "idle"
+            # Posição, estado e tarefa atual vindos do ML
+            pos = get_current_position()
+            status = get_current_status()
+            task = get_current_task()
 
-            # consumo base
-            drain = BASE_DRAIN
-
-            # consumo adicional pela tarefa
-            drain += TASK_DRAIN.get(task, 0.0)
-
-            # charging sobrescreve: carrega
-            if status == "charging":
-                drain = TASK_DRAIN["charging"]
-
-            # movimento simples: só se estiver em missão
-            if status == "in_mission":
-                position[0] += random.uniform(-0.3, 0.3)
-                position[1] += random.uniform(-0.3, 0.3)
-                speed = 1.0
-            else:
-                speed = 0.0
-
-            # atualiza bateria
-            battery -= drain
-            if status == "charging":
-                if battery >= 100.0:
-                    battery = 100.0
-                    status = "idle"
-            else:
-                if battery < 0:
-                    battery = 0
-
-            # se ficar muito baixa, entra em charging automaticamente
-            if battery < 20.0 and status not in ("charging", "offline"):
-                status = "charging"
-
-            # se chegar a 0, morre
-            if battery <= 0 and status != "offline":
-                status = "offline"
+            # Atualiza bateria
+            battery_ref["value"] = compute_battery(battery_ref["value"], status, task, dt)
+            batt = round(battery_ref["value"], 1)
 
             payload = {
                 "rover_id": rover_identity.ROVER_ID,
-                "position": [round(position[0], 2), round(position[1], 2), position[2]],
-                "battery": round(battery, 1),
+                "position": pos,
+                "battery": batt,
+                "speed": 1.0 if status == "in_mission" else 0.0,
                 "status": status,
-                "speed": speed,
-                "timestamp": time.time(),
+                "timestamp": now,
             }
-            _send(sock, 2, payload)
+            send(sock, 2, payload)   # action=2 → telemetry update
 
-            # se offline, manda disconnect e termina
-            if status == "offline":
-                _send(sock, 5, {
-                    "rover_id": rover_identity.ROVER_ID,
-                    "reason": "battery_empty"
-                })
-                print(f"[{rover_identity.ROVER_ID}] Bateria esgotada, rover offline.")
-                break
+            # Heartbeat ocasional
+            if random.random() < 0.15:
+                send(sock, 4, {"rover_id": rover_identity.ROVER_ID, "timestamp": now})
 
-            # heartbeat opcional
-            if random.random() < 0.2:
-                _send(sock, 4, {"rover_id": rover_identity.ROVER_ID, "timestamp": time.time()})
-
-            time.sleep(1)
+            time.sleep(2)
 
     except KeyboardInterrupt:
-        print(f"\n[{rover_identity.ROVER_ID}] TelemetryStream encerrado manualmente.")
+        print(f"[{rover_identity.ROVER_ID}] TS encerrado manualmente.")
         try:
-            _send(sock, 5, {"rover_id": rover_identity.ROVER_ID, "reason": "manual_disconnect"})
-        except Exception:
+            send(sock, 5, {"rover_id": rover_identity.ROVER_ID, "reason": "manual_disconnect"})
+        except:
             pass
     except (BrokenPipeError, ConnectionResetError):
         print(f"[{rover_identity.ROVER_ID}] Ligação TS perdida.")
@@ -134,10 +107,19 @@ def telemetry_loop(sock, status_provider, task_provider=None):
         sock.close()
 
 
-def start_telemetry(status_provider, task_provider=None):
+# ==========================================================
+#   START TELEMETRY CLIENT
+# ==========================================================
+
+def start_telemetry(get_pos, get_status, get_task, battery_ref):
     if rover_identity.ROVER_ID is None:
-        raise RuntimeError("ROVER_ID não definido. Chama rover_identity.choose_rover_id() primeiro.")
+        raise RuntimeError("ROVER_ID não definido.")
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect(SERVER)
-    telemetry_loop(sock, status_provider, task_provider)
+
+    print(f"[{rover_identity.ROVER_ID}] Ligado ao TelemetryStream.")
+
+    send(sock, 1, {"rover_id": rover_identity.ROVER_ID, "timestamp": time.time()})  # CONNECT
+
+    telemetry_loop(sock, get_pos, get_status, get_task, battery_ref)
