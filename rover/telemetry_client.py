@@ -76,8 +76,8 @@ def telemetry_loop(sock, get_current_position, get_current_status, get_current_t
             task = get_current_task()
 
             # Atualiza bateria
-            battery_ref["value"] = compute_battery(battery_ref["value"], status, task, dt)
-            batt = round(battery_ref["value"], 1)
+            battery_ref.BATTERY = compute_battery(battery_ref.BATTERY, status, task, dt)
+            batt = round(battery_ref.BATTERY, 1)
 
             payload = {
                 "rover_id": rover_identity.ROVER_ID,
