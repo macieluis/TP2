@@ -10,7 +10,8 @@ import threading
 import struct
 import time
 
-from common.codec import decode_msg, HEADER_SIZE
+from common.codec import decode_msg, HEADER_SIZE, encode_msg
+from common.protocol_constants import TS_ERROR
 from state.rover_state import (
     update_telemetry,
     mark_disconnected,
@@ -20,6 +21,8 @@ from state.rover_state import (
 HOST = "0.0.0.0"
 PORT = 6000
 
+_active_conns_lock = threading.Lock()
+_ACTIVE_CONNECTIONS = {}
 
 def handle_client(conn, addr):
     rover_id = None
@@ -67,10 +70,25 @@ def handle_client(conn, addr):
             # ──────────────────────────────────────────────────────────────
             #  1 → CONNECT
             # ──────────────────────────────────────────────────────────────
-            if action == 1: # TS_CONNECT
+            if action == 1:
                 rover_id = payload["rover_id"]
-                print(f"[TS] {rover_id} conectado.")
-                # ... (o resto do código está OK)
+                print(f"[TS] {rover_id} a tentar conectar.")
+
+                # LÓGICA DE CONCORRÊNCIA
+                with _active_conns_lock:
+                    if rover_id in _ACTIVE_CONNECTIONS:
+                        old_conn = _ACTIVE_CONNECTIONS[rover_id]
+                        print(f"[TS] A expulsar sessão antiga de {rover_id}.")
+                        try:
+                            # Tentar enviar TS_ERROR = 6
+                            err_pkt = encode_msg(1, 2, TS_ERROR, 0, {"error": "new_session"})
+                            old_conn.sendall(err_pkt)
+                        except Exception:
+                            pass # Sessão antiga pode já estar morta
+                        old_conn.close()
+                    
+                    _ACTIVE_CONNECTIONS[rover_id] = conn # Guardar nova conexão
+                    
                 update_telemetry(
                     rover_id=rover_id,
                     position=payload.get("position", [0.0, 0.0, 0.0]), # Adiciona default
@@ -125,8 +143,15 @@ def handle_client(conn, addr):
     finally:
         if rover_id:
             mark_disconnected(rover_id)
+            # Libertar o "lugar"
+            with _active_conns_lock:
+                # Só apaga se esta for a conexão ativa (evita race conditions)
+                if _ACTIVE_CONNECTIONS.get(rover_id) == conn:
+                    del _ACTIVE_CONNECTIONS[rover_id]
+        
         conn.close()
         print(f"[TS] Ligação encerrada: {addr}")
+        
 
 def start_telemetry_server():
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

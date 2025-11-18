@@ -6,6 +6,7 @@ import socket
 import time
 import random
 from common.codec import encode_msg
+from missionlink_client import set_status
 import rover_identity
 
 SERVER = ("127.0.0.1", 6000)
@@ -38,12 +39,14 @@ CONSUMPTION = {
 }
 
 def compute_battery(batt, status, task, dt):
+    # Regra 1: Se o estado for "charging", carrega
+    if status == "charging":
+        return min(100.0, batt + (1.0 * dt))  # carrega 1%/s
+
     if batt <= 0:
         return 0.0
 
-    if batt < 20:
-        return min(100.0, batt + (1.0 * dt))  # carrega 1%/s
-
+    # Regra 2: Se não estiver a carregar, consome
     base = CONSUMPTION.get(status, 0.10)
     extra = CONSUMPTION.get(task, 0.0)
 
@@ -63,28 +66,38 @@ def telemetry_loop(sock, get_current_position, get_current_status, get_current_t
     Apenas envia a posição atual *decidida pelo MissionLink* (via missionlink_client).
     """
     last = time.time()
-
+    set_status_fn = set_status
+    
     try:
         while True:
             now = time.time()
             dt = now - last
             last = now
 
-            # Posição, estado e tarefa atual vindos do ML
+           # Posição, estado e tarefa atual vindos do ML
             pos = get_current_position()
-            status = get_current_status()
+            status_antes = get_current_status()
             task = get_current_task()
 
             # Atualiza bateria
-            battery_ref.BATTERY = compute_battery(battery_ref.BATTERY, status, task, dt)
+            battery_ref.BATTERY = compute_battery(battery_ref.BATTERY, status_antes, task, dt)
             batt = round(battery_ref.BATTERY, 1)
+
+            # LÓGICA DE ESTADO DA BATERIA (A PARTE MAIS IMPORTANTE)
+            if batt < 20 and status_antes != "charging":
+                set_status_fn("charging")
+            elif batt >= 100 and status_antes == "charging":
+                set_status_fn("idle")
+            
+            # Obter o estado ATUALIZADO (pode ter mudado para "charging")
+            status_final = get_current_status()
 
             payload = {
                 "rover_id": rover_identity.ROVER_ID,
                 "position": pos,
                 "battery": batt,
-                "speed": 1.0 if status == "in_mission" else 0.0,
-                "status": status,
+                "speed": 1.0 if status_final == "in_mission" else 0.0,
+                "status": status_final, # Envia o estado correto
                 "timestamp": now,
             }
             send(sock, 2, payload)   # action=2 → telemetry update

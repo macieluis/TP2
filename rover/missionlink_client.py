@@ -20,14 +20,35 @@ _status_lock = threading.Lock()
 _rover_status = "idle"
 
 
+_status_lock = threading.Lock()
+_rover_status = "idle" # "idle", "in_mission", "charging"
+
+
 def get_status():
+    """Retorna o estado global atual do rover."""
     with _status_lock:
         return _rover_status
 
 
 def set_status(s):
+    """Define o estado global do rover, com regras de prioridade."""
+    global _rover_status
     with _status_lock:
-        global _rover_status
+        # Regra 1: Se estiver a carregar, IGNORA um pedido para "in_mission".
+        if _rover_status == "charging" and s == "in_mission":
+            return  # Continua a carregar
+
+        # Regra 2: Se estiver a carregar, só pode sair para "idle" (bateria cheia)
+        if _rover_status == "charging" and s == "idle":
+            _rover_status = "idle"
+            return
+
+        # Regra 3: Se o novo estado é "charging", define-o imediatamente.
+        if s == "charging":
+            _rover_status = "charging"
+            return
+            
+        # Outros casos (ex: idle -> in_mission)
         _rover_status = s
 
 def get_current_task():
@@ -113,6 +134,11 @@ def run_mission(sock):
 
     # Usar a posição global do rover
     pos = rover_identity.POSITION
+    
+    if get_status() == "charging":
+        print(f"[{rover_identity.ROVER_ID}] Bateria a carregar, missão {m_id} não pode começar.")
+        _current_mission = None
+        return
 
     print(f"[{rover_identity.ROVER_ID}] >>> Início da missão {m_id} ({task.upper()})")
 
@@ -151,7 +177,13 @@ def run_mission(sock):
                     "position": pos.copy(), "extra": {}
                 })
                 print(f"[{rover_identity.ROVER_ID}] {m_id}: {progress}% (linha {i+1}/{num_lines}) pos({pos[0]:.1f},{pos[1]:.1f})")
-
+                
+                # VERIFICAÇÃO 2: Parar a missão se a bateria ficar baixa
+                if get_status() == "charging":
+                    print(f"[{rover_identity.ROVER_ID}] Missão {m_id} interrompida (bateria baixa).")
+                    _current_mission = None
+                    return # Sai da função run_mission
+        
                 time.sleep(interval) 
                 
                 if i < num_lines - 1:
