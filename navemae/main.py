@@ -7,6 +7,7 @@ import time
 from missionlink_server import start_missionlink
 from telemetry_server import start_telemetry_server
 from state.rover_state import get_snapshot, apply_timeouts
+from api_server import start_api_server
 
 RUNNING = True
 
@@ -51,6 +52,9 @@ def main():
 
     # Servidor ML UDP
     threading.Thread(target=start_missionlink, daemon=True).start()
+    
+    #API
+    threading.Thread(target=start_api_server, daemon=True).start()
 
     # Thread de output organizado
     threading.Thread(target=printer_loop, daemon=True).start()

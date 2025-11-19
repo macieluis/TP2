@@ -62,19 +62,20 @@ def compute_battery(batt, status, task, dt):
 
 def telemetry_loop(sock, get_current_position, get_current_status, get_current_task, battery_ref):
     """
-    Rover não calcula posição aqui.  
-    Apenas envia a posição atual *decidida pelo MissionLink* (via missionlink_client).
+    Loop principal de telemetria.
     """
     last = time.time()
-    set_status_fn = set_status
+    set_status_fn = set_status # Assuming set_status is defined globally or imported
     
+    # Adicionar um contador para evitar guardar em disco a cada 2s
+    save_counter = 0
+
     try:
         while True:
             now = time.time()
             dt = now - last
             last = now
 
-           # Posição, estado e tarefa atual vindos do ML
             pos = get_current_position()
             status_antes = get_current_status()
             task = get_current_task()
@@ -83,13 +84,12 @@ def telemetry_loop(sock, get_current_position, get_current_status, get_current_t
             battery_ref.BATTERY = compute_battery(battery_ref.BATTERY, status_antes, task, dt)
             batt = round(battery_ref.BATTERY, 1)
 
-            # LÓGICA DE ESTADO DA BATERIA (A PARTE MAIS IMPORTANTE)
+            # LÓGICA DE ESTADO DA BATERIA
             if batt < 20 and status_antes != "charging":
                 set_status_fn("charging")
             elif batt >= 100 and status_antes == "charging":
                 set_status_fn("idle")
             
-            # Obter o estado ATUALIZADO (pode ter mudado para "charging")
             status_final = get_current_status()
 
             payload = {
@@ -97,10 +97,18 @@ def telemetry_loop(sock, get_current_position, get_current_status, get_current_t
                 "position": pos,
                 "battery": batt,
                 "speed": 1.0 if status_final == "in_mission" else 0.0,
-                "status": status_final, # Envia o estado correto
+                "status": status_final,
                 "timestamp": now,
             }
-            send(sock, 2, payload)   # action=2 → telemetry update
+            send(sock, 2, payload) # action=2 → telemetry update
+
+            # === PERSISTÊNCIA CORRIGIDA ===
+            # Salva o estado para o disco a cada 10 ciclos (a cada 20 segundos)
+            save_counter += 1
+            if save_counter >= 10: 
+                rover_identity.save_state()
+                save_counter = 0
+            # ==============================
 
             # Heartbeat ocasional
             if random.random() < 0.15:
@@ -117,8 +125,9 @@ def telemetry_loop(sock, get_current_position, get_current_status, get_current_t
     except (BrokenPipeError, ConnectionResetError):
         print(f"[{rover_identity.ROVER_ID}] Ligação TS perdida.")
     finally:
+        # SALVA O ESTADO UMA ÚLTIMA VEZ NO FINAL
+        rover_identity.save_state()
         sock.close()
-
 
 # ==========================================================
 #   START TELEMETRY CLIENT
