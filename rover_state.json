@@ -1,62 +1,82 @@
 {
   "R-001": {
     "position": [
-      0,
-      1.0,
+      0.0,
+      10.0,
       0.0
     ],
-    "battery": 94.5,
-    "status": "offline",
-    "speed": 1.0,
-    "mission_id": "M-073",
-    "mission_progress": 10.0,
-    "mission_status": "in_progress",
-    "last_mission_update": 1763583404.639487,
-    "last_telemetry": 1763583405.191988
+    "battery": 94.4,
+    "status": "idle",
+    "speed": 0.0,
+    "mission_id": null,
+    "mission_progress": 0.0,
+    "mission_status": "completed",
+    "last_mission_update": 1763774553.4120052,
+    "last_telemetry": 1763774705.4133859,
+    "last_finished": {
+      "id": "M-097",
+      "status": "completed",
+      "ts": 1763774553.4120069
+    }
   },
   "R-002": {
     "position": [
-      10,
-      10.0,
+      12.099441722272953,
+      -34.2282525067599,
       0.0
     ],
-    "battery": 97.4,
-    "status": "offline",
+    "battery": 22.2,
+    "status": "idle",
     "speed": 0.0,
     "mission_id": null,
-    "mission_progress": 100.0,
+    "mission_progress": 0.0,
     "mission_status": "completed",
-    "last_mission_update": 1763493688.254136,
-    "last_telemetry": 1763494184.427408
+    "last_mission_update": 1763774457.546956,
+    "last_telemetry": 1763774705.364372,
+    "last_finished": {
+      "id": "M-095",
+      "status": "completed",
+      "ts": 1763774457.546958
+    }
   },
   "R-003": {
     "position": [
-      10,
-      10.0,
+      16.68775755735988,
+      6.073907901012666,
       0.0
     ],
-    "battery": 42.9,
-    "status": "offline",
+    "battery": 53.5,
+    "status": "idle",
     "speed": 0.0,
     "mission_id": null,
-    "mission_progress": 100.0,
+    "mission_progress": 0.0,
     "mission_status": "completed",
-    "last_mission_update": 1763493757.444246,
-    "last_telemetry": 1763493916.921786
+    "last_mission_update": 1763774427.390985,
+    "last_telemetry": 1763774706.116746,
+    "last_finished": {
+      "id": "M-096",
+      "status": "completed",
+      "ts": 1763774427.390989
+    }
   },
   "R-004": {
     "position": [
-      10,
-      10.0,
+      0.0,
+      8.0,
       0.0
     ],
-    "battery": 20.2,
-    "status": "offline",
+    "battery": 87.0,
+    "status": "idle",
     "speed": 0.0,
     "mission_id": null,
-    "mission_progress": 100.0,
+    "mission_progress": 0.0,
     "mission_status": "completed",
-    "last_mission_update": 1763493793.6448069,
-    "last_telemetry": 1763494179.546734
+    "last_mission_update": 1763774492.844359,
+    "last_telemetry": 1763774704.724969,
+    "last_finished": {
+      "id": "M-093",
+      "status": "completed",
+      "ts": 1763774492.844361
+    }
   }
 }

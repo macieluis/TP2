@@ -11,7 +11,6 @@ from api_server import start_api_server
 
 RUNNING = True
 
-
 def printer_loop():
     """Imprime o estado global de forma limpa e sem spam."""
     while RUNNING:
@@ -30,13 +29,23 @@ def printer_loop():
                 mid = r.get("mission_id")
                 prog = r.get("mission_progress")
 
-                pos_s = "None" if pos is None else f"[{pos[0]}, {pos[1]}, {pos[2]}]"
+                # === CORREÇÃO DE SEGURANÇA (2D vs 3D) ===
+                if pos is None:
+                    pos_s = "None"
+                elif len(pos) >= 3:
+                    pos_s = f"[{pos[0]:.1f}, {pos[1]:.1f}, {pos[2]:.1f}]"
+                elif len(pos) == 2:
+                    pos_s = f"[{pos[0]:.1f}, {pos[1]:.1f}, 0.0]" # Assume Z=0
+                else:
+                    pos_s = str(pos)
+                # ========================================
+
                 batt_s = "None" if batt is None else f"{batt:.1f}%"
                 prog_s = "-" if prog is None else f"{prog:.0f}%"
                 mid_s  = "—" if mid is None else mid
 
-                alive = r.get("alive", False)
-                flag = "🟢" if alive else "🔴"
+                alive = r.get("alive", False) # Nota: 'alive' não está no state, usa-se status
+                flag = "🟢" if stat != "offline" else "🔴"
 
                 print(f"{flag} {rid}: pos={pos_s} | batt={batt_s} | status={stat} | missão={mid_s} ({prog_s})")
 
@@ -53,7 +62,7 @@ def main():
     # Servidor ML UDP
     threading.Thread(target=start_missionlink, daemon=True).start()
     
-    #API
+    # API Web
     threading.Thread(target=start_api_server, daemon=True).start()
 
     # Thread de output organizado

@@ -85,7 +85,9 @@ def telemetry_loop(sock, get_current_position, get_current_status, get_current_t
             batt = round(battery_ref.BATTERY, 1)
 
             # LÓGICA DE ESTADO DA BATERIA
-            if batt < 20 and status_antes != "charging":
+            if batt < 20 and status_antes == "idle":
+                set_status_fn("charging")
+            elif batt < 5 and status_antes == "in_mission":
                 set_status_fn("charging")
             elif batt >= 100 and status_antes == "charging":
                 set_status_fn("idle")
