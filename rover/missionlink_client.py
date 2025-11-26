@@ -229,7 +229,7 @@ def run_mission(sock):
                 elapsed = time.time() - start_time
                 progress = min(99.0, (elapsed / duration) * 100)
                 
-                extra = {"temp": 25} # Simplificado
+                extra = {"temp": 25}
                 send(sock, ML_UPDATE, {
                     "rover_id": rover_identity.ROVER_ID, "mission_id": m_id,
                     "progress": round(progress, 1), "status": "in_progress", 

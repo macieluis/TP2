@@ -13,9 +13,9 @@ from common.state import get_next_mission_id
 
 ML_ADDR = ("0.0.0.0", 5000)
 
-# === LISTA DE ESPERA DE MISSÕES (Vindas da Web) ===
-# Estrutura: { "R-001": { "task": "scan_area", ... } }
-PENDING_MISSIONS = {} 
+# === GESTÃO DE MISSÕES ===
+PENDING_MISSIONS = {}       # Fila de espera (Vindas da Web)
+MISSIONS_IN_TRANSIT = {}    # Enviadas mas ainda não confirmadas (Para Retransmissão)
 _pending_lock = threading.Lock()
 
 def add_pending_mission(rover_id, mission_data):
@@ -47,51 +47,64 @@ def handle_request(sock, data, addr):
     rover_id = payload.get("rover_id", "UNKNOWN")
 
     # =====================================================
-    # 6 — PEDIDO DE MISSÃO (O Rover pede trabalho)
+    # 6 — PEDIDO DE MISSÃO (Lógica de Retransmissão)
     # =====================================================
     if action == ML_REQUEST:
-        print(f"[ML] Pedido de missão de {rover_id} ({addr})")
+        # print(f"[ML] Pedido de {rover_id}") 
 
         mission_to_send = None
+        is_retransmission = False
         
-        # 1. Verificar se TU criaste uma missão na Web
         with _pending_lock:
-            if rover_id in PENDING_MISSIONS:
-                # Retirar a missão da fila
+            # 1. PRIORIDADE: Verificar se há missão em trânsito (Retransmissão)
+            # Se o rover pede missão mas nós achamos que já enviámos, é porque ele não recebeu.
+            if rover_id in MISSIONS_IN_TRANSIT:
+                mission_to_send = MISSIONS_IN_TRANSIT[rover_id]
+                is_retransmission = True
+            
+            # 2. Verificar se há nova missão na fila
+            elif rover_id in PENDING_MISSIONS:
+                # Retirar da fila de espera
                 base_data = PENDING_MISSIONS.pop(rover_id)
                 
-                # Gerar ID final e empacotar
+                # Criar missão final
                 mid = get_next_mission_id()
                 mission_to_send = {
                     "mission_id": mid,
-                    "update_interval": 5, # Intervalo rápido para testes
                     **base_data
                 }
+                # GUARDAR NA LISTA DE TRÂNSITO (Até receber ACK)
+                MISSIONS_IN_TRANSIT[rover_id] = mission_to_send
 
-        # 2. Se houver missão, envia. Se não, IGNORA (o rover tenta depois).
         if mission_to_send:
             send_message(addr, ML_NEW_MISSION, mission_to_send, rover_id)
-            print(f"[ML] >>> Enviada missão {mission_to_send['mission_id']} ({mission_to_send['task']}) para {rover_id}")
-
-            # Atualizar estado para "Atribuída"
-            pos, _ = get_last_known_state(rover_id)
-            update_mission(rover_id, mission_to_send['mission_id'], 0.0, "assigned", pos)
-        else:
-            # Opcional: print para debug, podes comentar se fizer muito spam
-            print(f"[ML] Sem missões agendadas para {rover_id}. A ignorar.")
+            
+            if is_retransmission:
+                print(f"[ML] ⚠️ RETRANSMISSÃO: {mission_to_send['mission_id']} para {rover_id}")
+            else:
+                print(f"[ML] >>> Enviada nova missão {mission_to_send['mission_id']} para {rover_id}")
+                # Atualizar estado visual apenas na primeira vez
+                pos, _ = get_last_known_state(rover_id)
+                update_mission(rover_id, mission_to_send['mission_id'], 0.0, "assigned", pos)
         
         return
 
     # =====================================================
-    # 2 — ACK (Rover recebeu a missão)
+    # 2 — ACK (Confirmação de Receção)
     # =====================================================
     elif action == ML_ACK:
         mid = payload.get("mission_id")
         print(f"[ML] ACK confirmado de {rover_id} para {mid}")
+        
+        # SUCESSO: Remover da lista de trânsito (já não precisa de retransmitir)
+        with _pending_lock:
+            if rover_id in MISSIONS_IN_TRANSIT:
+                if MISSIONS_IN_TRANSIT[rover_id]["mission_id"] == mid:
+                    del MISSIONS_IN_TRANSIT[rover_id]
+
         pos, _ = get_last_known_state(rover_id)
         update_mission(rover_id, mid, 0.0, "in_progress", pos)
         
-        # Ack do Ack para fechar o handshake (opcional mas recomendado)
         send_message(addr, ML_ACK, {"ok": True}, rover_id)
         return
 
@@ -106,7 +119,6 @@ def handle_request(sock, data, addr):
         
         if pos:
             update_mission(rover_id, mid, prog, mstatus, pos)
-            print(f"[ML] Update {rover_id}: {mid} {prog:.0f}%")
         return
 
     # =====================================================
@@ -116,6 +128,12 @@ def handle_request(sock, data, addr):
         mid = payload["mission_id"]
         pos = payload.get("position")
         print(f"[ML] MISSÃO CONCLUÍDA {mid} ({rover_id})")
+        
+        # Limpeza de segurança
+        with _pending_lock:
+            if rover_id in MISSIONS_IN_TRANSIT:
+                del MISSIONS_IN_TRANSIT[rover_id]
+
         if pos:
             update_mission(rover_id, mid, 100.0, "completed", pos)
         return
