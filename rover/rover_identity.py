@@ -2,7 +2,11 @@
 import os
 import json
 
-ROVER_ID: str | None = None
+from typing import Optional
+ROVER_ID: Optional[str] = None #no core
+
+#ROVER_ID: str | None = None NO PC
+
 
 # estado "real" do rover (usado por ML e TS)
 POSITION = [0.0, 0.0, 0.0]   # x, y, z

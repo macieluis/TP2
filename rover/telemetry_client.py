@@ -9,7 +9,8 @@ from common.codec import encode_msg
 from missionlink_client import set_status
 import rover_identity
 
-SERVER = ("127.0.0.1", 6000)
+#SERVER = ("127.0.0.1", 6000) no pc
+SERVER = ("10.0.3.20",6000)  # IP DA NAVE-MÃE NO CORE
 SEQ = 1
 
 
