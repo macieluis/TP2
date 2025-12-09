@@ -1,1 +1,0 @@
-# Funções auxiliares (logs, serialização, etc.

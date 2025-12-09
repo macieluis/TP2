@@ -27,11 +27,11 @@ def set_status(s):
         if _rover_status == "charging" and s != "idle" and s != "charging": return 
         _rover_status = s
 
-# === ESTA FUNÇÃO É CRUCIAL PARA O MAIN.PY NÃO DAR ERRO ===
+
 def get_current_task():
     if _current_mission is None: return None
     return _current_mission.get("task")
-# =========================================================
+
 
 def send(sock, action, payload):
     global SEQ
@@ -218,18 +218,46 @@ def run_mission(sock):
         # --- ANALYZE ENVIRONMENT ---
         elif task == "analyze_environment":
             sensors = m.get("sensors", [])
+            start_t = time.time()
+            
             # Loop até o tempo acabar
-            while (time.time() - start_time) < duration:
+            while (time.time() - start_t) < duration:
                 if get_status() == "charging": success=False; break
                 
+                # 1. Movimento Aleatório (Browniano) - Mantido
                 rover_identity.POSITION[0] += random.uniform(-1, 1) * interval
                 rover_identity.POSITION[1] += random.uniform(-1, 1) * interval
                 if len(rover_identity.POSITION) < 3: rover_identity.POSITION.append(0.0)
                 
-                elapsed = time.time() - start_time
+                # 2. Cálculo do Progresso - Mantido
+                elapsed = time.time() - start_t
                 progress = min(99.0, (elapsed / duration) * 100)
                 
-                extra = {"temp": 25}
+                # 3. GERAÇÃO DE DADOS (Matemática: Senos e Cossenos)
+                # Os valores dependem da posição X, Y e do tempo atual
+                x, y = rover_identity.POSITION[0], rover_identity.POSITION[1]
+                t_now = time.time()
+
+                extra = {}
+                
+                if "temperature" in sensors:
+                    # Temperatura varia suavemente com a posição (ondas de calor)
+                    # Ex: Base 20ºC + variação sinusoidal baseada na posição
+                    val = 20.0 + 10.0 * math.sin(x / 5.0) + 5.0 * math.cos(y / 5.0)
+                    extra["temp"] = round(val, 1)
+
+                if "radiation" in sensors:
+                    # Radiação pulsa com o tempo e aumenta com a distância da origem
+                    dist = math.sqrt(x**2 + y**2)
+                    val = 10.0 + (dist / 2.0) + 5.0 * math.sin(t_now)
+                    extra["rad"] = round(val, 2)
+
+                if "dust_level" in sensors:
+                    # Nível de pó varia rapidamente (ruído)
+                    val = 50.0 + 20.0 * math.cos(x * y) + random.uniform(-5, 5)
+                    extra["dust"] = round(max(0, val), 1)
+
+                # 4. Envio do Update - Mantido
                 send(sock, ML_UPDATE, {
                     "rover_id": rover_identity.ROVER_ID, "mission_id": m_id,
                     "progress": round(progress, 1), "status": "in_progress", 
