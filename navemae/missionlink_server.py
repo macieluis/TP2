@@ -113,12 +113,12 @@ def handle_request(sock, data, addr):
     # =====================================================
     elif action == ML_UPDATE:
         mid = payload["mission_id"]
-        prog = payload["progress"]
-        mstatus = payload["status"]
         pos = payload.get("position")
+        extra = payload.get("extra") 
         
         if pos:
-            update_mission(rover_id, mid, prog, mstatus, pos)
+            
+            update_mission(rover_id, mid, payload["progress"], payload["status"], pos, extra)
         return
 
     # =====================================================

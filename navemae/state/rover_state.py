@@ -35,7 +35,7 @@ def update_telemetry(rover_id, position, battery, status, speed):
         r = rovers.setdefault(rover_id, {
             "position": [0.0, 0.0, 0.0], "battery": 100.0, "status": "idle",
             "speed": 0.0, "mission_id": None, "mission_progress": 0.0,
-            "mission_status": None, "last_mission_update": None
+            "mission_status": None, "last_mission_update": None, "mission_details": {}
         })
         r["position"] = position
         r["battery"] = battery
@@ -44,12 +44,12 @@ def update_telemetry(rover_id, position, battery, status, speed):
         r["last_telemetry"] = time.time()
         _save_state()
 
-def update_mission(rover_id, mission_id, progress, mission_status, position):
+def update_mission(rover_id, mission_id, progress, mission_status, position, extra_data=None):
     with _lock:
         r = rovers.setdefault(rover_id, {
             "position": [0.0, 0.0, 0.0], "battery": 100.0, "status": "idle",
             "speed": 0.0, "mission_id": None, "mission_progress": 0.0,
-            "mission_status": None
+            "mission_status": None, "mission_details": {}
         })
 
         r["mission_id"] = mission_id
@@ -57,7 +57,8 @@ def update_mission(rover_id, mission_id, progress, mission_status, position):
         r["mission_status"] = mission_status
         r["position"] = position
         r["last_mission_update"] = time.time()
-
+        if extra_data:
+            r["mission_details"] = extra_data
     
         if progress >= 100.0 or mission_status in ["completed", "aborted", "incomplete"]:
             
@@ -81,6 +82,7 @@ def update_mission(rover_id, mission_id, progress, mission_status, position):
             
             r["mission_id"] = None
             r["mission_progress"] = 0.0
+            r["mission_details"] = {}
             # Se completou, volta a idle (se não estiver offline/charging)
             if r["status"] == "in_mission": 
                 r["status"] = "idle"

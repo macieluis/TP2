@@ -206,17 +206,15 @@
     <div id="toast-container"></div>
 
     <script>
-        const API = "http://127.0.0.1:8000";
+        const API = "http://10.0.2.21:8000"; // IP CORE
         let knownRovers = new Set();
-        let globalState = {}; // Armazena o estado para validação
+        let globalState = {}; 
         let lastEvents = {};
 
-        // ATUALIZA A CAIXA DE AJUDA E OS CAMPOS VISÍVEIS
         function updateForm() {
             const task = document.getElementById('sel-task').value;
             const helpBox = document.getElementById('mission-help');
             
-            // Esconder tudo primeiro
             document.getElementById('opts-scan').classList.add('hidden');
             document.getElementById('opts-collect').classList.add('hidden');
             document.getElementById('opts-analyze').classList.add('hidden');
@@ -235,12 +233,10 @@
             }
         }
 
-        // ENVIA A MISSÃO PARA A API (COM VERIFICAÇÃO DE ESTADO)
         async function sendMission() {
             const rid = document.getElementById('sel-rover').value;
             if (!rid) { alert("⚠️ Erro: Nenhum rover selecionado."); return; }
 
-            // 1. VERIFICAÇÃO INTELIGENTE DE ESTADO
             const roverInfo = globalState[rid];
             if (!roverInfo) return alert("Dados do rover indisponíveis.");
 
@@ -251,12 +247,10 @@
             let confirmMsg = `Confirmar envio de missão para o ${rid}?`;
             let isQueued = false;
 
-            // Se estiver ocupado
-            if (roverInfo.status === 'in_mission' || roverInfo.status === 'moving' || roverInfo.status === 'collecting' || roverInfo.status === 'scanning') {
+            if (roverInfo.status === 'in_mission' || roverInfo.status === 'moving' || roverInfo.status === 'collecting' || roverInfo.status === 'scanning' || roverInfo.status === 'analyzing' || roverInfo.status === 'in_progress') {
                 confirmMsg = `⚠️ AVISO: O ${rid} já está em missão (${roverInfo.status.toUpperCase()}).\n\nDeseja colocar esta nova missão na FILA DE ESPERA?`;
                 isQueued = true;
             } 
-            // Se estiver a carregar
             else if (roverInfo.status === 'charging') {
                 confirmMsg = `⚠️ AVISO: O ${rid} está a CARREGAR bateria.\n\nDeseja AGENDAR a missão para quando terminar?`;
                 isQueued = true;
@@ -265,11 +259,8 @@
             if(!confirm(confirmMsg)) return;
 
             const task = document.getElementById('sel-task').value;
-            
-            // 2. CONSTRUIR PAYLOAD
             const payload = {
-                rover_id: rid,
-                task: task,
+                rover_id: rid, task: task,
                 duration: parseInt(document.getElementById('sel-duration').value),
                 update_interval: parseInt(document.getElementById('sel-interval').value)
             };
@@ -289,11 +280,9 @@
                 payload.sensors = s;
             }
 
-            // 3. ENVIAR
             try {
                 const res = await fetch(`${API}/api/missions`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)
                 });
                 const json = await res.json();
@@ -305,18 +294,16 @@
             } catch(e) { alert("Erro de ligação à Nave-Mãe: " + e); }
         }
 
-        // POLLING DE ESTADO
         async function update() {
             try {
                 const res = await fetch(`${API}/api/state`);
                 if(!res.ok) throw new Error("API Error");
                 const data = await res.json();
-                globalState = data; // Guardar estado para validação
+                globalState = data;
                 
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('last-update').innerText = "Sync: " + new Date().toLocaleTimeString();
                 
-                // Atualizar Dropdown de Rovers
                 const roverSelect = document.getElementById('sel-rover');
                 const currentSelection = roverSelect.value;
                 
@@ -324,16 +311,12 @@
                     if(!knownRovers.has(rid)) {
                         knownRovers.add(rid);
                         const opt = document.createElement('option');
-                        opt.value = rid;
-                        opt.innerText = rid;
+                        opt.value = rid; opt.innerText = rid;
                         roverSelect.appendChild(opt);
                     }
                 }
-                if (currentSelection === "" && roverSelect.options.length > 1) {
-                    roverSelect.selectedIndex = 1;
-                }
+                if (currentSelection === "" && roverSelect.options.length > 1) roverSelect.selectedIndex = 1;
 
-                // Desenhar Cartões
                 const container = document.getElementById('app');
                 container.innerHTML = '';
 
@@ -346,20 +329,17 @@
                     const status = info.status || 'offline';
                     const isOffline = (status === 'offline');
                     
-                    let statusColor = '#F44336'; // Offline red
-                    let statusText = 'OFFLINE';
-                    let borderColor = '#444';
+                    let statusColor = '#F44336'; let statusText = 'OFFLINE'; let borderColor = '#444';
 
                     if (info.last_finished) {
                         const lastTs = lastEvents[rid] || 0;
-                        // Se o evento é novo (timestamp maior que o último visto)
                         if (info.last_finished.ts > lastTs) {
                             lastEvents[rid] = info.last_finished.ts;
                             showToast(rid, info.last_finished.id, info.last_finished.status);
                         }
                     }
                     
-                    if (status === 'in_mission' || status === 'moving' || status === 'collecting' || status === 'scanning' || status === 'analyzing') { 
+                    if (['in_mission','moving','collecting','scanning','analyzing','in_progress'].includes(status)) { 
                         statusColor = '#2196F3'; statusText = 'EM MISSÃO'; borderColor = '#2196F3'; 
                     } else if (status === 'charging') { 
                         statusColor = '#FFC107'; statusText = 'A CARREGAR'; borderColor = '#FFC107'; 
@@ -368,9 +348,22 @@
                     }
 
                     const batt = info.battery !== undefined ? info.battery.toFixed(1) + '%' : '---';
-                    const pos = info.position ? `[${info.position[0].toFixed(1)}, ${info.position[1].toFixed(1)}]` : '---';
+                    
+                    // === ALTERAÇÃO 1: FORMATAÇÃO DA POSIÇÃO ===
+                    const pos = info.position 
+                        ? `[ X:${info.position[0].toFixed(1)} , Y:${info.position[1].toFixed(1)} ]` 
+                        : '---';
+                    // ===========================================
+
                     const mission = info.mission_id || '---';
                     const progress = info.mission_progress !== undefined ? info.mission_progress.toFixed(0) + '%' : '0%';
+
+                    // === ALTERAÇÃO 2: DETALHES DA MISSÃO ===
+                    let displayMsg = '';
+                    if (info.mission_details && info.mission_details.display) {
+                        displayMsg = info.mission_details.display;
+                    }
+                    // =======================================
 
                     const html = `
                         <div class="card" style="border-left: 4px solid ${isOffline ? '#444' : borderColor}; opacity: ${isOffline ? 0.6 : 1}">
@@ -380,9 +373,15 @@
                             </div>
                             
                             <div class="info-row"><span class="label">Bateria</span> <span class="val" style="color:${info.battery < 20 ? '#FF5252' : '#fff'}">${batt}</span></div>
-                            <div class="info-row"><span class="label">Posição (X, Y)</span> <span class="val">${pos}</span></div>
+                            
+                            <div class="info-row"><span class="label">Posição Atual</span> <span class="val" style="font-family:monospace; color:#4CAF50">${pos}</span></div>
+                            
                             <div class="info-row"><span class="label">Missão Atual</span> <span class="val">${mission}</span></div>
                             
+                            <div style="font-size:0.85em; color:#2196F3; text-align:right; min-height:1.2em; font-family:monospace; margin-bottom:5px; font-weight:bold;">
+                                ${displayMsg}
+                            </div>
+
                             <div class="progress-bg">
                                 <div class="progress-fill" style="width:${progress}; background-color: ${statusColor}"></div>
                             </div>
@@ -392,11 +391,8 @@
                     container.innerHTML += html;
                 }
 
-            } catch(e) { 
-                document.getElementById('loading').style.display = 'block';
-            }
+            } catch(e) { document.getElementById('loading').style.display = 'block'; }
         }
-
 
         function showToast(rid, mid, status) {
             const container = document.getElementById('toast-container');
@@ -408,8 +404,6 @@
                 <div style="font-size:0.8em; color:#aaa; margin-top:5px">STATUS: ${status.toUpperCase()}</div>
             `;
             container.appendChild(div);
-            
-            // Desaparecer após 5 segundos
             setTimeout(() => {
                 div.style.opacity = '0';
                 div.style.transform = 'translateX(100%)';
@@ -422,43 +416,31 @@
             try {
                 const res = await fetch(`${API}/api/history`);
                 const data = await res.json();
-                
                 const tbody = document.getElementById('history-body');
                 tbody.innerHTML = '';
-
                 if (data.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#666; padding:10px">Sem histórico recente.</td></tr>';
                     return;
                 }
-
                 data.forEach(row => {
                     let color = '#fff';
-                    if(row.status === 'completed') color = '#4CAF50'; // Verde
-                    if(row.status === 'aborted') color = '#F44336';   // Vermelho
-                    
+                    if(row.status === 'completed') color = '#4CAF50';
+                    if(row.status === 'aborted') color = '#F44336';
                     const html = `
                         <tr>
                             <td>${row.time}</td>
                             <td style="font-weight:bold">${row.rover_id}</td>
                             <td>${row.mission_id}</td>
                             <td style="color:${color}; text-transform:uppercase; font-size:0.8em; font-weight:bold">${row.status}</td>
-                        </tr>
-                    `;
+                        </tr>`;
                     tbody.innerHTML += html;
                 });
             } catch(e) { console.log("Erro histórico"); }
         }
 
-        // Inicialização
         updateForm();
-        setInterval(() => {
-            update();
-            updateHistory(); 
-        }, 1000);
-        
-        update();
-        updateHistory();
-        
+        setInterval(() => { update(); updateHistory(); }, 1000);
+        update(); updateHistory();
     </script>
 </body>
 </html>
