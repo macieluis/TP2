@@ -12,7 +12,7 @@ from common.codec import encode_msg, decode_msg
 from common.protocol_constants import ML_REQUEST, ML_ACK, ML_UPDATE, ML_COMPLETE, ML_NEW_MISSION
 
 # IP DA NAVE-MÃE NO CORE
-ML_SERVER = ("10.0.2.21", 5000) 
+ML_SERVER = ("127.0.0.1", 5000)
 SEQ = 1
 _current_mission = None
 _status_lock = threading.Lock()

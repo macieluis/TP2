@@ -206,7 +206,7 @@
     <div id="toast-container"></div>
 
     <script>
-        const API = "http://10.0.2.21:8000"; // IP CORE
+        const API = "http://127.0.0.1:8000"; // IP CORE
         let knownRovers = new Set();
         let globalState = {}; 
         let lastEvents = {};
@@ -358,7 +358,7 @@
                     const mission = info.mission_id || '---';
                     const progress = info.mission_progress !== undefined ? info.mission_progress.toFixed(0) + '%' : '0%';
 
-                    // === ALTERAÇÃO 2: DETALHES DA MISSÃO ===
+                    // === ALTERAÇÃO 2: DETALHES DA MISSÃO (AQUI ESTÃO OS DETALHES) ===
                     let displayMsg = '';
                     if (info.mission_details && info.mission_details.display) {
                         displayMsg = info.mission_details.display;
@@ -378,7 +378,7 @@
                             
                             <div class="info-row"><span class="label">Missão Atual</span> <span class="val">${mission}</span></div>
                             
-                            <div style="font-size:0.85em; color:#2196F3; text-align:right; min-height:1.2em; font-family:monospace; margin-bottom:5px; font-weight:bold;">
+                            <div style="font-size:0.9em; color:#2196F3; text-align:right; min-height:1.2em; font-family:monospace; margin-bottom:5px; font-weight:bold;">
                                 ${displayMsg}
                             </div>
 
