@@ -3,15 +3,15 @@ import pickle
 
 # Header: version (B), msg_type (B), action (B), seq (H), length (H), checksum (B)
 HEADER_FMT = "!BBBHHB"
+
 HEADER_SIZE = struct.calcsize(HEADER_FMT)
 
 def encode_msg(version, msg_type, action, seq, payload):
-    """
-    Serializa o payload usando Pickle (formato binário nativo do Python)
-    em vez de JSON (texto).
-    """
+    """Codifica uma mensagem com header e payload."""
+    
     # 1. Serializar o dicionário diretamente para bytes binários
     body = pickle.dumps(payload)
+    
     
     length = len(body)
     checksum = sum(body) % 256
@@ -23,6 +23,8 @@ def encode_msg(version, msg_type, action, seq, payload):
 
 
 def decode_msg(packet):
+    """Decodifica uma mensagem recebida em bytes."""
+    
     if len(packet) < HEADER_SIZE:
         # Se não tiver dados suficientes, retorna None ou levanta erro
         # (Ajustado para ser mais seguro em streams TCP)
@@ -34,7 +36,7 @@ def decode_msg(packet):
     
     version, msg_type, action, seq, length, checksum = struct.unpack(HEADER_FMT, header)
     
-    # Verificar se temos o pacote completo (apenas útil se passares o buffer todo)
+    # Verificar se temos o pacote completo
     if len(packet) < HEADER_SIZE + length:
         return None # Pacote incompleto
 
@@ -42,11 +44,13 @@ def decode_msg(packet):
 
     if sum(payload_data) % 256 != checksum:
         raise ValueError("Checksum inválido")
+    
 
     # 2. Deserializar os bytes binários de volta para dicionário
     try:
         data = pickle.loads(payload_data)
     except Exception as e:
+        
         raise ValueError(f"Erro ao descodificar payload binário: {e}")
 
     return {

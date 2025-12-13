@@ -1,4 +1,3 @@
-# navemae/missionlink_server.py
 import sys, os
 # Garante que encontra os módulos common/state
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -13,42 +12,50 @@ from common.state import get_next_mission_id
 
 ML_ADDR = ("0.0.0.0", 5000)
 
-# === GESTÃO DE MISSÕES ===
+# GESTÃO DE MISSÕES 
 PENDING_MISSIONS = {}       # Fila de espera (Vindas da Web)
 MISSIONS_IN_TRANSIT = {}    # Enviadas mas ainda não confirmadas (Para Retransmissão)
+
 _pending_lock = threading.Lock()
 
 def add_pending_mission(rover_id, mission_data):
     """Função chamada pela API para agendar uma missão."""
+    
     with _pending_lock:
         PENDING_MISSIONS[rover_id] = mission_data
         print(f"[ML] Missão agendada para {rover_id}: {mission_data['task']}")
 
 def send_message(addr, msg_type, payload, rover_id):
+    """Envia uma mensagem UDP para o rover."""
+    
     try:
         pkt = encode_msg(1, 1, msg_type, 0, payload)
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.sendto(pkt, addr)
         sock.close()
         return True
+    
     except Exception as e:
         print(f"[ML] ERRO ao enviar para {addr}: {e}")
         return False
 
 def handle_request(sock, data, addr):
+    """Processa uma mensagem recebida de um rover."""
+    
     try:
         msg = decode_msg(data)
         payload = msg["payload"]
         action = msg["action"]
+        
     except Exception as e:
+        
         print(f"[ML] ERRO decode {addr}: {e}")
         return
 
     rover_id = payload.get("rover_id", "UNKNOWN")
-
-    # =====================================================
+    
     # 6 — PEDIDO DE MISSÃO (Lógica de Retransmissão)
-    # =====================================================
+    
     if action == ML_REQUEST:
         # print(f"[ML] Pedido de {rover_id}") 
 
@@ -59,11 +66,13 @@ def handle_request(sock, data, addr):
             # 1. PRIORIDADE: Verificar se há missão em trânsito (Retransmissão)
             # Se o rover pede missão mas nós achamos que já enviámos, é porque ele não recebeu.
             if rover_id in MISSIONS_IN_TRANSIT:
+                
                 mission_to_send = MISSIONS_IN_TRANSIT[rover_id]
                 is_retransmission = True
             
             # 2. Verificar se há nova missão na fila
             elif rover_id in PENDING_MISSIONS:
+                
                 # Retirar da fila de espera
                 base_data = PENDING_MISSIONS.pop(rover_id)
                 
@@ -73,14 +82,18 @@ def handle_request(sock, data, addr):
                     "mission_id": mid,
                     **base_data
                 }
+                
                 # GUARDAR NA LISTA DE TRÂNSITO (Até receber ACK)
                 MISSIONS_IN_TRANSIT[rover_id] = mission_to_send
 
         if mission_to_send:
+            
             send_message(addr, ML_NEW_MISSION, mission_to_send, rover_id)
             
             if is_retransmission:
+                
                 print(f"[ML] ⚠️ RETRANSMISSÃO: {mission_to_send['mission_id']} para {rover_id}")
+                
             else:
                 print(f"[ML] >>> Enviada nova missão {mission_to_send['mission_id']} para {rover_id}")
                 # Atualizar estado visual apenas na primeira vez
@@ -89,44 +102,49 @@ def handle_request(sock, data, addr):
         
         return
 
-    # =====================================================
+    
     # 2 — ACK (Confirmação de Receção)
-    # =====================================================
+    
     elif action == ML_ACK:
+        
         mid = payload.get("mission_id")
         print(f"[ML] ACK confirmado de {rover_id} para {mid}")
         
         # SUCESSO: Remover da lista de trânsito (já não precisa de retransmitir)
         with _pending_lock:
+            
             if rover_id in MISSIONS_IN_TRANSIT:
+                
                 if MISSIONS_IN_TRANSIT[rover_id]["mission_id"] == mid:
                     del MISSIONS_IN_TRANSIT[rover_id]
 
         pos, _ = get_last_known_state(rover_id)
+        
         update_mission(rover_id, mid, 0.0, "in_progress", pos)
         
         send_message(addr, ML_ACK, {"ok": True}, rover_id)
         return
 
-    # =====================================================
     # 3 — UPDATE (Progresso)
-    # =====================================================
+    
     elif action == ML_UPDATE:
+        
         mid = payload["mission_id"]
         pos = payload.get("position")
         extra = payload.get("extra") 
         
         if pos:
-            
+        
             update_mission(rover_id, mid, payload["progress"], payload["status"], pos, extra)
         return
 
-    # =====================================================
     # 7 — COMPLETE
-    # =====================================================
+    
     elif action == ML_COMPLETE:
+        
         mid = payload["mission_id"]
         pos = payload.get("position")
+        
         print(f"[ML] MISSÃO CONCLUÍDA {mid} ({rover_id})")
         
         # Limpeza de segurança
@@ -139,13 +157,14 @@ def handle_request(sock, data, addr):
         return
 
 def start_missionlink():
+    """Inicia o servidor MissionLink."""
+    
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(ML_ADDR)
+    
     print(f"[ML] MissionLink ativo em {ML_ADDR}")
     
     while True:
+        
         data, addr = sock.recvfrom(4096)
         threading.Thread(target=handle_request, args=(sock, data, addr), daemon=True).start()
-
-if __name__ == "__main__":
-    start_missionlink()

@@ -1,5 +1,3 @@
-# protocol_constants.py
-
 # Message Types
 MSG_TYPE_MISSIONLINK = 1
 MSG_TYPE_TELEMETRY   = 2

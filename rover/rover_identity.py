@@ -1,4 +1,3 @@
-# rover/rover_identity.py
 import os
 import json
 
@@ -17,9 +16,13 @@ STATE_DIR = "rover_data"
 
 
 def _state_file():
+    """Devolve o caminho do ficheiro de estado deste rover."""
+    
     if ROVER_ID is None:
         return None
+    
     os.makedirs(STATE_DIR, exist_ok=True)
+    
     return os.path.join(STATE_DIR, f"state_{ROVER_ID}.json")
 
 
@@ -28,16 +31,20 @@ def load_state():
     global POSITION, BATTERY
 
     path = _state_file()
+    
     if not path or not os.path.exists(path):
+        
         POSITION = [0.0, 0.0, 0.0]
         BATTERY = 100.0
         return
 
     try:
+        
         with open(path, "r") as f:
             data = json.load(f)
         POSITION = data.get("position", [0.0, 0.0, 0.0])
         BATTERY = float(data.get("battery", 100.0))
+        
     except Exception:
         # se o ficheiro estiver marado, começa default
         POSITION = [0.0, 0.0, 0.0]
@@ -46,6 +53,7 @@ def load_state():
 
 def save_state():
     """Guarda posição e bateria atuais em disco."""
+    
     path = _state_file()
     if not path:
         return
@@ -55,6 +63,7 @@ def save_state():
         "battery": BATTERY,
     }
     try:
+        
         with open(path, "w") as f:
             json.dump(data, f, indent=2)
     except Exception:
@@ -64,12 +73,13 @@ def save_state():
 
 VALID_ROVERS = ["R-001", "R-002", "R-003", "R-004"]
 
-
 def choose_rover_id():
     """Pergunta o rover ao utilizador e carrega o estado desse rover."""
+    
     global ROVER_ID
 
     print("Escolhe o Rover (R-001, R-002, R-003, R-004):")
+    
     rid = input("> ").strip().upper()
     if rid not in VALID_ROVERS:
         print("Rover inválido.")
@@ -77,4 +87,5 @@ def choose_rover_id():
 
     ROVER_ID = rid
     load_state()
+    
     print(f"[{ROVER_ID}] Estado inicial: pos={POSITION} | batt={BATTERY:.1f}%")

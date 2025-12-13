@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="pt">
 <head>
     <meta charset="UTF-8">
@@ -74,8 +75,10 @@
         <h2>🛠️ Configurar Missão</h2>
         
         <div class="form-group">
+
             <label>1. Rover Alvo</label>
             <small>Para quem é esta ordem?</small>
+
             <select id="sel-rover">
                 <option value="">A aguardar conexão com Nave-Mãe...</option>
             </select>
@@ -84,6 +87,7 @@
         <div class="form-group">
             <label>2. Tipo de Missão</label>
             <select id="sel-task" onchange="updateForm()">
+
                 <option value="scan_area">📡 Scan Area (Mapeamento)</option>
                 <option value="collect_sample">🪨 Collect Sample (Recolha)</option>
                 <option value="analyze_environment">🌡️ Analyze Environment (Sensores)</option>
@@ -99,8 +103,10 @@
         <div id="opts-scan">
             <div class="form-group">
                 <label>Área a Varrer (Coordenadas)</label>
+
                 <small>Zona geográfica exata onde o rover vai operar.</small>
                 <select id="sel-area">
+
                     <option value="[[0,0],[10,10]]">Área Padrão [0,0] até [10,10] (100m²)</option>
                     <option value="[[0,0],[20,20]]">Área Grande [0,0] até [20,20] (400m²)</option>
                     <option value="[[5,5],[15,15]]">Área Deslocada [5,5] até [15,15]</option>
@@ -108,8 +114,10 @@
             </div>
             <div class="form-group">
                 <label>Resolução (Detalhe)</label>
+
                 <small>Espaçamento entre as linhas de varrimento.</small>
                 <select id="sel-resolution">
+
                     <option value="1.0">1.0 metro (Normal)</option>
                     <option value="2.0">2.0 metros (Rápido, menos detalhe)</option>
                     <option value="0.5">0.5 metros (Lento, muito detalhe)</option>
@@ -120,32 +128,41 @@
         <div id="opts-collect" class="hidden">
             <div class="form-group">
                 <label>Rota de Recolha</label>
+
                 <small>Sequência exata de pontos GPS a visitar.</small>
                 <select id="sel-points">
                     <option value="[[2,2],[8,8],[5,5]]">Triângulo: (2,2) → (8,8) → (5,5)</option>
+
                     <option value="[[0,0],[0,10],[10,10],[10,0]]">Perímetro: 4 cantos da Área Padrão</option>
+
                     <option value="[[5,5]]">Ponto Único: Centro (5,5)</option>
                 </select>
             </div>
             <div class="form-group">
                 <label>Tipo de Amostra</label>
+                
                 <select id="sel-sample">
                     <option value="rock">🪨 Rochas (Geologia)</option>
                     <option value="dust">🌫️ Poeira (Atmosfera)</option>
                     <option value="ice">❄️ Gelo (Hidrologia)</option>
+
                 </select>
             </div>
         </div>
 
         <div id="opts-analyze" class="hidden">
+
             <div class="form-group">
+
                 <label>Sensores a Ativar</label>
                 <small>O rover move-se aleatoriamente enquanto lê estes dados.</small>
+
                 <div style="background: #222; padding: 10px; border: 1px solid #555; border-radius: 4px;">
                     <label style="font-weight: normal;"><input type="checkbox" id="chk-temp" checked> Temperatura (°C)</label>
                     <label style="font-weight: normal;"><input type="checkbox" id="chk-rad" checked> Radiação (mSv)</label>
                     <label style="font-weight: normal;"><input type="checkbox" id="chk-dust"> Densidade de Pó (%)</label>
                 </div>
+
             </div>
         </div>
 
@@ -153,7 +170,9 @@
 
         <div class="form-group">
             <label>Duração Máxima (Timeout)</label>
+
             <small>Tempo limite para completar a tarefa.</small>
+
             <select id="sel-duration">
                 <option value="60">60 segundos (1 min)</option>
                 <option value="120">120 segundos (2 min)</option>
@@ -164,8 +183,11 @@
 
         <div class="form-group">
             <label>Frequência de Reporte</label>
+
             <small>Intervalo de envio de progresso à Nave-Mãe.</small>
+
             <select id="sel-interval">
+
                 <option value="5">A cada 5 segundos (Detalhado)</option>
                 <option value="10">A cada 10 segundos (Normal)</option>
                 <option value="15">A cada 15 segundos (Económico)</option>
@@ -178,13 +200,16 @@
 
     <div class="monitor-panel">
         <div class="monitor-header">
+
             <h1>🛰️ Monitorização da Frota</h1>
+
             <div style="font-size: 0.9em; color: #aaa;" id="last-update">Aguardando dados...</div>
         </div>
         
         <div id="app" class="grid"></div>
 
         <div class="history-panel">
+
             <h3 style="margin:0; color:#2196F3">📜 Histórico de Missões (Últimas 10)</h3>
             <table>
                 <thead>
@@ -213,7 +238,10 @@
         let lastEvents = {};
 
         function updateForm() {
+            // Mostrar/Ocultar opções conforme o tipo de missão selecionado
+
             const task = document.getElementById('sel-task').value;
+
             const helpBox = document.getElementById('mission-help');
             
             document.getElementById('opts-scan').classList.add('hidden');
@@ -221,9 +249,11 @@
             document.getElementById('opts-analyze').classList.add('hidden');
 
             if (task === 'scan_area') {
+
                 document.getElementById('opts-scan').classList.remove('hidden');
                 helpBox.innerHTML = "📡 <b>Scan Area:</b> O rover cobre a área selecionada em linhas paralelas (zig-zag) para mapeamento completo.";
             } 
+
             else if (task === 'collect_sample') {
                 document.getElementById('opts-collect').classList.remove('hidden');
                 helpBox.innerHTML = "🪨 <b>Collect Sample:</b> O rover viaja sequencialmente pelos pontos da rota escolhida e para em cada um para recolher amostras.";
@@ -235,10 +265,14 @@
         }
 
         async function sendMission() {
+            // Enviar a missão configurada para o rover selecionado
+
             const rid = document.getElementById('sel-rover').value;
+
             if (!rid) { alert("⚠️ Erro: Nenhum rover selecionado."); return; }
 
             const roverInfo = globalState[rid];
+
             if (!roverInfo) return alert("Dados do rover indisponíveis.");
 
             if (roverInfo.status === 'offline') {
@@ -246,13 +280,16 @@
             }
 
             let confirmMsg = `Confirmar envio de missão para o ${rid}?`;
+
             let isQueued = false;
 
             if (roverInfo.status === 'in_mission' || roverInfo.status === 'moving' || roverInfo.status === 'collecting' || roverInfo.status === 'scanning' || roverInfo.status === 'analyzing' || roverInfo.status === 'in_progress') {
                 confirmMsg = `⚠️ AVISO: O ${rid} já está em missão (${roverInfo.status.toUpperCase()}).\n\nDeseja colocar esta nova missão na FILA DE ESPERA?`;
                 isQueued = true;
             } 
+
             else if (roverInfo.status === 'charging') {
+
                 confirmMsg = `⚠️ AVISO: O ${rid} está a CARREGAR bateria.\n\nDeseja AGENDAR a missão para quando terminar?`;
                 isQueued = true;
             }
@@ -260,19 +297,25 @@
             if(!confirm(confirmMsg)) return;
 
             const task = document.getElementById('sel-task').value;
+
             const payload = {
+
                 rover_id: rid, task: task,
                 duration: parseInt(document.getElementById('sel-duration').value),
                 update_interval: parseInt(document.getElementById('sel-interval').value)
             };
 
             if (task === 'scan_area') {
+
                 payload.area = JSON.parse(document.getElementById('sel-area').value);
                 payload.resolution = parseFloat(document.getElementById('sel-resolution').value);
+
             } else if (task === 'collect_sample') {
                 payload.points = JSON.parse(document.getElementById('sel-points').value);
                 payload.sample_type = document.getElementById('sel-sample').value;
+
             } else if (task === 'analyze_environment') {
+
                 payload.area = [[0,0],[10,10]]; 
                 const s = [];
                 if(document.getElementById('chk-temp').checked) s.push('temperature');
@@ -283,22 +326,29 @@
 
             try {
                 const res = await fetch(`${API}/api/missions`, {
+
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)
                 });
+
                 const json = await res.json();
                 if(res.ok) {
                     if(isQueued) alert("✅ Sucesso: Missão adicionada à fila de espera.");
                     else alert("✅ Sucesso: Missão enviada!");
                 }
+
                 else alert("❌ Erro na API: " + json.error);
             } catch(e) { alert("Erro de ligação à Nave-Mãe: " + e); }
         }
 
         async function update() {
+            // Buscar estado atual dos rovers da API
+
             try {
                 const res = await fetch(`${API}/api/state`);
+
                 if(!res.ok) throw new Error("API Error");
+
                 const data = await res.json();
                 globalState = data;
                 
@@ -306,10 +356,13 @@
                 document.getElementById('last-update').innerText = "Sync: " + new Date().toLocaleTimeString();
                 
                 const roverSelect = document.getElementById('sel-rover');
+
                 const currentSelection = roverSelect.value;
                 
                 for(const rid of Object.keys(data)) {
+
                     if(!knownRovers.has(rid)) {
+
                         knownRovers.add(rid);
                         const opt = document.createElement('option');
                         opt.value = rid; opt.innerText = rid;
@@ -328,43 +381,49 @@
 
                 for(const [rid, info] of Object.entries(data)) {
                     const status = info.status || 'offline';
+
                     const isOffline = (status === 'offline');
                     
                     let statusColor = '#F44336'; let statusText = 'OFFLINE'; let borderColor = '#444';
 
                     if (info.last_finished) {
+
                         const lastTs = lastEvents[rid] || 0;
                         if (info.last_finished.ts > lastTs) {
                             lastEvents[rid] = info.last_finished.ts;
+
                             showToast(rid, info.last_finished.id, info.last_finished.status);
                         }
                     }
                     
                     if (['in_mission','moving','collecting','scanning','analyzing','in_progress'].includes(status)) { 
                         statusColor = '#2196F3'; statusText = 'EM MISSÃO'; borderColor = '#2196F3'; 
+
                     } else if (status === 'charging') { 
                         statusColor = '#FFC107'; statusText = 'A CARREGAR'; borderColor = '#FFC107'; 
                     } else if (status === 'idle') { 
+
                         statusColor = '#4CAF50'; statusText = 'AGUARDANDO'; borderColor = '#4CAF50'; 
+
                     }
 
                     const batt = info.battery !== undefined ? info.battery.toFixed(1) + '%' : '---';
                     
-                    // === ALTERAÇÃO 1: FORMATAÇÃO DA POSIÇÃO ===
+                    
                     const pos = info.position 
                         ? `[ X:${info.position[0].toFixed(1)} , Y:${info.position[1].toFixed(1)} ]` 
                         : '---';
-                    // ===========================================
+                    
 
                     const mission = info.mission_id || '---';
                     const progress = info.mission_progress !== undefined ? info.mission_progress.toFixed(0) + '%' : '0%';
 
-                    // === ALTERAÇÃO 2: DETALHES DA MISSÃO (AQUI ESTÃO OS DETALHES) ===
+                    // DETALHES DA MISSÃO 
                     let displayMsg = '';
                     if (info.mission_details && info.mission_details.display) {
                         displayMsg = info.mission_details.display;
                     }
-                    // =======================================
+                   
 
                     const html = `
                         <div class="card" style="border-left: 4px solid ${isOffline ? '#444' : borderColor}; opacity: ${isOffline ? 0.6 : 1}">
@@ -372,23 +431,29 @@
                                 <h2>${rid}</h2>
                                 <span class="status-badge" style="border: 1px solid ${statusColor}; color: ${statusColor}">${statusText}</span>
                             </div>
+
                             
                             <div class="info-row"><span class="label">Bateria</span> <span class="val" style="color:${info.battery < 20 ? '#FF5252' : '#fff'}">${batt}</span></div>
                             
+
                             <div class="info-row"><span class="label">Posição Atual</span> <span class="val" style="font-family:monospace; color:#4CAF50">${pos}</span></div>
                             
                             <div class="info-row"><span class="label">Missão Atual</span> <span class="val">${mission}</span></div>
+
                             
                             <div style="font-size:0.9em; color:#2196F3; text-align:right; min-height:1.2em; font-family:monospace; margin-bottom:5px; font-weight:bold;">
                                 ${displayMsg}
                             </div>
 
                             <div class="progress-bg">
+
                                 <div class="progress-fill" style="width:${progress}; background-color: ${statusColor}"></div>
                             </div>
+
                             <div style="text-align: right; font-size: 0.8em; color: #aaa; margin-top: 4px;">Progresso: ${progress}</div>
                         </div>
                     `;
+
                     container.innerHTML += html;
                 }
 
@@ -396,15 +461,20 @@
         }
 
         function showToast(rid, mid, status) {
+            // Mostrar notificação de missão terminada
+
             const container = document.getElementById('toast-container');
             const div = document.createElement('div');
             div.className = `toast ${status}`;
+
             div.innerHTML = `
                 <div style="font-weight:bold; font-size:1.1em; margin-bottom:5px">${rid}</div>
                 <div>Missão ${mid} terminada.</div>
+
                 <div style="font-size:0.8em; color:#aaa; margin-top:5px">STATUS: ${status.toUpperCase()}</div>
             `;
             container.appendChild(div);
+
             setTimeout(() => {
                 div.style.opacity = '0';
                 div.style.transform = 'translateX(100%)';
@@ -414,7 +484,10 @@
         }
 
         async function updateHistory() {
+            // Buscar histórico de missões da API
+
             try {
+
                 const res = await fetch(`${API}/api/history`);
                 const data = await res.json();
                 const tbody = document.getElementById('history-body');
@@ -423,10 +496,12 @@
                     tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#666; padding:10px">Sem histórico recente.</td></tr>';
                     return;
                 }
+
                 data.forEach(row => {
                     let color = '#fff';
                     if(row.status === 'completed') color = '#4CAF50';
                     if(row.status === 'aborted') color = '#F44336';
+
                     const html = `
                         <tr>
                             <td>${row.time}</td>
@@ -440,8 +515,13 @@
         }
 
         updateForm();
+
         setInterval(() => { update(); updateHistory(); }, 1000);
+
         update(); updateHistory();
+
     </script>
+
 </body>
+
 </html>
